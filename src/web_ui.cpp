@@ -19,6 +19,8 @@ bool started = false;
 bool setupMode = false;
 DeviceSettings pending;
 bool pendingValid = false;
+DeviceSettings candidate;
+bool candidateReady = false;
 bool pendingSaved = false;
 
 std::string arg(const char *name) { return std::string(server.arg(name).c_str()); }
@@ -94,7 +96,7 @@ SetupPageView setupView(const std::string &error) {
 }
 
 void handleSetupPage() {
-  if (server.hasArg("rescan")) provisioningScan();
+  if (server.hasArg("rescan") && provisioningConnectState() != ConnectState::CONNECTING) provisioningScan();
   const std::string error =
       server.hasArg("failed") ? "Couldn't connect. Check the network name and password, then try again." : "";
   sendHtml(renderSetupPage(setupView(error)));
@@ -113,11 +115,13 @@ void handleSetupSubmit() {
   const bool scheduleOk = readSchedule(s.schedule, scheduleError);
   pending = s;
   pendingValid = true;
-  pendingSaved = false;
   if (!wifiOk || !tzOk || !scheduleOk) {
     sendHtml(renderSetupPage(setupView(!wifiOk ? wifiError : (!tzOk ? tzError : scheduleError))));
     return;
   }
+  candidate = s;
+  candidateReady = true;
+  pendingSaved = false;
   provisioningBeginConnect(s.wifiSsid, s.wifiPass);
   sendHtml(renderConnectingPage());
 }
@@ -156,9 +160,9 @@ void webUiBeginSetup() {
 void webUiLoop() {
   if (!started) return;
   server.handleClient();
-  if (setupMode && pendingValid && !pendingSaved && provisioningConnectState() == ConnectState::CONNECTED) {
+  if (setupMode && candidateReady && !pendingSaved && provisioningConnectState() == ConnectState::CONNECTED) {
     pendingSaved = true;
-    if (settingsSave(pending)) {
+    if (settingsSave(candidate)) {
       app.restartAtMs = millis() + kRestartAfterSetupMs;
       Serial.println("[SETUP] Settings saved; restarting in 30 s.");
     } else {

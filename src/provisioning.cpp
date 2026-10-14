@@ -101,6 +101,7 @@ void provisioningLoop() {
 
 void provisioningBeginConnect(const std::string &ssid, const std::string &pass) {
   WiFi.disconnect();
+  WiFi.setAutoReconnect(false);
   WiFi.begin(ssid.c_str(), pass.empty() ? nullptr : pass.c_str());
   connectState = ConnectState::CONNECTING;
   connectStartMs = millis();
