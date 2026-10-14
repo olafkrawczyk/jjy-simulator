@@ -1,0 +1,7 @@
+{
+  "name": "jjy_core",
+  "version": "1.0.0",
+  "description": "Hardware-independent JJY simulator logic",
+  "frameworks": "*",
+  "platforms": "*"
+}
