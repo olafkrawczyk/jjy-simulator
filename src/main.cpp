@@ -14,8 +14,9 @@
 #include "transmitter.h"
 #include "version.h"
 
-// Keep a freshly installed image in PENDING_VERIFY until it has reached the network;
-// if it crashes before otaMarkRunningImageValid(), the bootloader rolls back.
+// A freshly installed image stays in PENDING_VERIFY until it has reached the network.
+// If it tries to sleep without ever reaching the network it rolls back; a crash or
+// power loss before then also rolls back.
 extern "C" bool verifyRollbackLater() { return true; }
 
 AppState app;
@@ -120,12 +121,17 @@ bool sleepBlocked() {
     app.uiHold = false;
     Serial.println("[WEB] No page activity for 15 minutes; sleep allowed again.");
   }
+  if (app.sleepNotBeforeMs != 0) {
+    if (static_cast<int32_t>(millis() - app.sleepNotBeforeMs) < 0) return true;
+    app.sleepNotBeforeMs = 0;
+  }
   return app.uiHold || app.restartAtMs != 0 || app.otaState == OtaState::INSTALL_REQUESTED ||
          app.otaState == OtaState::INSTALLING;
 }
 
 void sleepUntil(time_t now, time_t wake) {
   if (!txStopWindowAndWait(100)) Serial.println("[SLEEP] Transmitter did not confirm carrier off.");
+  if (otaRunningImagePending() && !networkReady) otaRollBack();
   otaMarkRunningImageValid();
   Serial.printf("[SLEEP] Waking at %s (%ld s)\n", formatLocal(wake).c_str(), static_cast<long>(wake - now));
   Serial.flush();
@@ -179,7 +185,7 @@ void runSchedule() {
 void setup() {
   Serial.begin(115200);
   delay(200);
-  Serial.printf("\nJJY 40 kHz simulator %s\n", FW_VERSION);
+  Serial.println("\nJJY 40 kHz simulator " FW_VERSION);
   WiFi.persistent(false);
 
   settingsLoad(app.settings);

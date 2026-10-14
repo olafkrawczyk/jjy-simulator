@@ -16,7 +16,9 @@ const char kLatestReleaseUrl[] = "https://api.github.com/repos/olafkrawczyk/jjy-
 bool otaFetchLatest(OtaRelease &out, std::string &error) {
   WiFiClientSecure client;
   client.setCACert(kRootCerts);
+  client.setHandshakeTimeout(15);
   HTTPClient http;
+  http.setTimeout(15000);
   http.useHTTP10(true);  // no chunked encoding, so ArduinoJson can read the stream directly
   if (!http.begin(client, kLatestReleaseUrl)) {
     error = "Couldn't check for updates. Try again later.";
@@ -68,7 +70,7 @@ bool otaFetchLatest(OtaRelease &out, std::string &error) {
 bool otaInstall(const std::string &url, std::string &error) {
   WiFiClientSecure client;
   client.setCACert(kRootCerts);
-  client.setTimeout(30);
+  client.setHandshakeTimeout(15);
   httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
   httpUpdate.rebootOnUpdate(false);
   const t_httpUpdate_return result = httpUpdate.update(client, String(url.c_str()));
@@ -85,4 +87,17 @@ void otaMarkRunningImageValid() {
     esp_ota_mark_app_valid_cancel_rollback();
     Serial.println("[OTA] New firmware confirmed.");
   }
+}
+
+bool otaRunningImagePending() {
+  esp_ota_img_states_t state;
+  return esp_ota_get_state_partition(esp_ota_get_running_partition(), &state) == ESP_OK &&
+         state == ESP_OTA_IMG_PENDING_VERIFY;
+}
+
+void otaRollBack() {
+  Serial.println("[OTA] New firmware never reached the network; rolling back.");
+  Serial.flush();
+  esp_ota_mark_app_invalid_rollback_and_reboot();
+  for (;;) delay(1000);
 }

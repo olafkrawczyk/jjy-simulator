@@ -29,6 +29,31 @@ bool pendingValid = false;
 DeviceSettings candidate;
 bool candidateReady = false;
 bool pendingSaved = false;
+bool saveFailed = false;
+
+// Rejects cross-site POSTs: Origin (or else Referer) must name this device.
+bool originAllowed() {
+  String src = server.header("Origin");
+  if (src.length() == 0) src = server.header("Referer");
+  if (src.length() == 0) return true;
+  const int scheme = src.indexOf("://");
+  const int start = scheme >= 0 ? scheme + 3 : 0;
+  int end = src.length();
+  for (int i = start; i < static_cast<int>(src.length()); ++i) {
+    const char c = src[i];
+    if (c == '/' || c == ':' || c == '?' || c == '#') {
+      end = i;
+      break;
+    }
+  }
+  String host = src.substring(start, end);
+  host.toLowerCase();
+  if (host == "jjy.local" || host == WiFi.localIP().toString() || host == WiFi.softAPIP().toString()) return true;
+  server.send(403, "text/plain", "Forbidden");
+  return false;
+}
+
+const char *kCollectedHeaders[] = {"Origin", "Referer"};
 
 std::string arg(const char *name) { return std::string(server.arg(name).c_str()); }
 
@@ -104,12 +129,16 @@ SetupPageView setupView(const std::string &error) {
 
 void handleSetupPage() {
   if (server.hasArg("rescan") && provisioningConnectState() != ConnectState::CONNECTING) provisioningScan();
-  const std::string error =
-      server.hasArg("failed") ? "Couldn't connect. Check the network name and password, then try again." : "";
+  std::string error;
+  if (server.hasArg("failed")) {
+    error = saveFailed ? "Connected, but the settings couldn't be saved. Please try again."
+                       : "Couldn't connect. Check the network name and password, then try again.";
+  }
   sendHtml(renderSetupPage(setupView(error)));
 }
 
 void handleSetupSubmit() {
+  if (!originAllowed()) return;
   DeviceSettings s = app.settings;
   s.wifiSsid = arg("ssid");
   if (s.wifiSsid.empty()) s.wifiSsid = arg("ssid_other");
@@ -129,13 +158,15 @@ void handleSetupSubmit() {
   candidate = s;
   candidateReady = true;
   pendingSaved = false;
+  saveFailed = false;
   provisioningBeginConnect(s.wifiSsid, s.wifiPass);
   sendHtml(renderConnectingPage());
 }
 
 void handleSetupStatus() {
   const ConnectState state = provisioningConnectState();
-  const char *name = state == ConnectState::CONNECTED ? "connected"
+  const char *name = saveFailed                            ? "failed"
+                     : state == ConnectState::CONNECTED ? "connected"
                      : state == ConnectState::FAILED  ? "failed"
                                                       : "connecting";
   std::string json = "{\"state\":\"";
@@ -193,6 +224,7 @@ void handleSettingsPage() {
 }
 
 void handleSave() {
+  if (!originAllowed()) return;
   DeviceSettings s = app.settings;
   std::string tzError;
   std::string scheduleError;
@@ -228,6 +260,8 @@ void handleSave() {
   carrierSetFrequency(s.freqHz);
   if (timingChanged && txWindowActive() && !app.coldBootBroadcast) txStopWindow();
   app.uiHold = false;
+  app.sleepNotBeforeMs = millis() + 5000;
+  if (app.sleepNotBeforeMs == 0) app.sleepNotBeforeMs = 1;
 
   SettingsPageView v = settingsView(app.settings, "", "");
   v.notice = "Saved. ";
@@ -237,10 +271,13 @@ void handleSave() {
 }
 
 void handleForget() {
+  if (!originAllowed()) return;
   if (!settingsForgetWifi()) {
     sendHtml(renderSettingsPage(settingsView(app.settings, "", "Couldn't forget the WiFi network. Please try again.")));
     return;
   }
+  app.settings.wifiSsid.clear();
+  app.settings.wifiPass.clear();
   app.restartAtMs = millis() + 3000;
   sendHtml(renderMessagePage("WiFi forgotten", "The transmitter is restarting in setup mode. On your phone, join "
                                                "the WiFi network " +
@@ -265,6 +302,7 @@ void handleStatus() {
 }
 
 void handleUpdateCheck() {
+  if (!originAllowed()) return;
   markUiActivity();
   OtaRelease release;
   std::string error;
@@ -284,6 +322,8 @@ void handleUpdateCheck() {
 }
 
 void handleUpdateInstall() {
+  if (!originAllowed()) return;
+  markUiActivity();
   if (app.latestUrl.empty()) {
     sendHtml(renderSettingsPage(settingsView(app.settings, "", "Check for updates first.")));
     return;
@@ -301,6 +341,7 @@ void webUiBeginSetup() {
   server.on("/setup", HTTP_POST, handleSetupSubmit);
   server.on("/setup/status", HTTP_GET, handleSetupStatus);
   server.onNotFound(handleCaptiveRedirect);
+  server.collectHeaders(kCollectedHeaders, 2);
   server.begin();
   started = true;
   Serial.println("[WEB] Setup page ready");
@@ -315,6 +356,7 @@ void webUiBeginNormal() {
   server.on("/update/check", HTTP_POST, handleUpdateCheck);
   server.on("/update/install", HTTP_POST, handleUpdateInstall);
   server.onNotFound([]() { server.send(404, "text/plain", "Not found"); });
+  server.collectHeaders(kCollectedHeaders, 2);
   server.begin();
   started = true;
   Serial.println("[WEB] Settings page ready");
@@ -329,6 +371,7 @@ void webUiLoop() {
       app.restartAtMs = millis() + kRestartAfterSetupMs;
       Serial.println("[SETUP] Settings saved; restarting in 30 s.");
     } else {
+      saveFailed = true;
       Serial.println("[SETUP] Could not save settings.");
     }
   }

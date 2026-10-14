@@ -17,7 +17,13 @@ out=src/certs.h
     Sectigo_Public_Server_Authentication_Root_R46 \
     ISRG_Root_X1 \
     ISRG_Root_X2 \
-    DigiCert_Global_Root_G2; do
+    DigiCert_Global_Root_G2 \
+    DigiCert_Global_Root_CA \
+    DigiCert_TLS_ECC_P384_Root_G5 \
+    DigiCert_TLS_RSA4096_Root_G5 \
+    GTS_Root_R1 \
+    GTS_Root_R4; do
+    [ -f "/etc/ssl/certs/$name.pem" ] || { echo "skipping missing $name" >&2; continue; }
     echo "    // $name"
     sed 's/.*/    "&\\n"/' "/etc/ssl/certs/$name.pem"
   done
