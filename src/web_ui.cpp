@@ -202,7 +202,10 @@ void handleSave() {
     const long hz = server.arg("freq").toInt();
     if (hz <= 0 || !settingsValidFreq(static_cast<uint32_t>(hz))) {
       ok = false;
-      error = "Carrier frequency must be between 39500 and 40500 Hz.";
+      char range[80];
+      snprintf(range, sizeof(range), "Carrier frequency must be between %lu and %lu Hz.",
+               static_cast<unsigned long>(kFreqMinHz), static_cast<unsigned long>(kFreqMaxHz));
+      error = range;
     } else {
       s.freqHz = static_cast<uint32_t>(hz);
     }
@@ -231,7 +234,10 @@ void handleSave() {
 }
 
 void handleForget() {
-  settingsForgetWifi();
+  if (!settingsForgetWifi()) {
+    sendHtml(renderSettingsPage(settingsView(app.settings, "", "Couldn't forget the WiFi network. Please try again.")));
+    return;
+  }
   app.restartAtMs = millis() + 3000;
   sendHtml(renderMessagePage("WiFi forgotten", "The transmitter is restarting in setup mode. On your phone, join "
                                                "the WiFi network " +

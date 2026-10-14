@@ -31,8 +31,12 @@ bool networkReady = false;
 void serviceNetwork() {
   if (networkReady || WiFi.status() != WL_CONNECTED) return;
   networkReady = true;
-  if (MDNS.begin("jjy")) MDNS.addService("http", "tcp", 80);
-  Serial.printf("[WEB] Settings page: http://jjy.local (http://%s)\n", WiFi.localIP().toString().c_str());
+  if (MDNS.begin("jjy")) {
+    MDNS.addService("http", "tcp", 80);
+    Serial.printf("[WEB] Settings page: http://jjy.local (http://%s)\n", WiFi.localIP().toString().c_str());
+  } else {
+    Serial.printf("[WEB] mDNS failed; use http://%s\n", WiFi.localIP().toString().c_str());
+  }
 }
 
 String formatLocal(time_t epoch) {

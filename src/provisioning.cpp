@@ -31,9 +31,10 @@ bool provisioningResetGestureDetected() {
   Serial.printf("[BOOT] Power-up %u of %u for WiFi reset\n", static_cast<unsigned>(count),
                 static_cast<unsigned>(kResetPowerUps));
   if (count >= kResetPowerUps) {
-    settingsForgetWifi();
+    const bool forgotten = settingsForgetWifi();
     settingsClearBootCount();
-    return true;
+    if (!forgotten) Serial.println("[BOOT] Could not forget WiFi.");
+    return forgotten;
   }
   bootCounterPending = true;
   return false;

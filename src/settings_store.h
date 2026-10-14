@@ -6,6 +6,6 @@
 
 void settingsLoad(DeviceSettings &settings);
 bool settingsSave(const DeviceSettings &settings);
-void settingsForgetWifi();
+bool settingsForgetWifi();
 uint8_t settingsIncrementBootCount();
 void settingsClearBootCount();

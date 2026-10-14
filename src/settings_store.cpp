@@ -85,10 +85,12 @@ bool settingsSave(const DeviceSettings &s) {
   return ok;
 }
 
-void settingsForgetWifi() {
-  if (!open()) return;
-  prefs.remove("wifi_ssid");
-  prefs.remove("wifi_pass");
+bool settingsForgetWifi() {
+  if (!open()) return false;
+  bool ok = true;
+  if (prefs.isKey("wifi_ssid") && !prefs.remove("wifi_ssid")) ok = false;
+  if (prefs.isKey("wifi_pass") && !prefs.remove("wifi_pass")) ok = false;
+  return ok;
 }
 
 uint8_t settingsIncrementBootCount() {
