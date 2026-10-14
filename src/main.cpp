@@ -22,6 +22,7 @@ const uint32_t kNtpWaitMs = 20000;
 const uint32_t kWifiConnectTimeoutMs = 20000;
 const uint32_t kLoopPeriodMs = 25;
 const uint32_t kFreqStepHz = 10;
+const uint32_t kUiHoldTimeoutMs = 15UL * 60UL * 1000UL;
 
 bool setupMode = false;
 bool coldBootPending = false;
@@ -93,6 +94,10 @@ void handleSerial() {
 }
 
 bool sleepBlocked() {
+  if (app.uiHold && millis() - app.uiHoldLastMs >= kUiHoldTimeoutMs) {
+    app.uiHold = false;
+    Serial.println("[WEB] No page activity for 15 minutes; sleep allowed again.");
+  }
   return app.uiHold || app.restartAtMs != 0 || app.otaState == OtaState::INSTALL_REQUESTED ||
          app.otaState == OtaState::INSTALLING;
 }

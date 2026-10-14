@@ -162,6 +162,7 @@ void markUiActivity() {
     app.uiHold = true;
     Serial.println("[WEB] Page opened during the start-up broadcast; sleep paused until Save.");
   }
+  if (app.uiHold) app.uiHoldLastMs = millis();
 }
 
 SettingsPageView settingsView(const DeviceSettings &s, const std::string &notice, const std::string &error) {
@@ -245,6 +246,7 @@ void handleForget() {
 }
 
 void handleStatus() {
+  markUiActivity();
   const char *ota = app.otaState == OtaState::FAILED ? "failed" : (app.otaState == OtaState::IDLE ? "idle" : "updating");
   std::string json = "{\"version\":\"";
   json += jsonEscape(FW_VERSION);
