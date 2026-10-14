@@ -30,7 +30,8 @@ const char kCss[] =
     ".msg{padding:12px;border-radius:8px;margin:0 0 16px;border:1px solid var(--line);background:var(--card)}"
     ".msg.error{color:var(--danger)}.msg.ok{color:var(--ok)}"
     ".big{font-size:32px;font-weight:700;line-height:1.2}"
-    "summary{cursor:pointer;font-weight:600}a{color:var(--accent)}";
+    "summary{cursor:pointer;font-weight:600}a{color:var(--accent)}"
+    ".save{margin-bottom:16px}";
 
 const char kScheduleScript[] =
     "var slots=document.getElementById('slots');"
@@ -203,9 +204,12 @@ std::string renderSetupPage(const SetupPageView &v) {
   b += message(v.error, true);
   b += "<form method=\"post\" action=\"/setup\">";
   b += "<section class=\"card\"><h2>1. WiFi</h2><label for=\"ssid\">Network</label><select id=\"ssid\" name=\"ssid\">";
+  // With no current selection, the first (strongest) network is preselected.
+  std::string target = v.selectedSsid;
+  if (target.empty() && !v.networks.empty()) target = v.networks[0];
   bool matched = false;
   for (const std::string &network : v.networks) {
-    const bool selected = !matched && network == v.selectedSsid;
+    const bool selected = !matched && !target.empty() && network == target;
     matched = matched || selected;
     b += "<option value=\"";
     b += htmlEscape(network);
@@ -280,7 +284,7 @@ std::string renderSettingsPage(const SettingsPageView &v) {
   b += "</section>";
 
   b += "<form method=\"post\" action=\"/save\">";
-  b += "<section class=\"card\"><h2>Time zone</h2>";
+  b += "<section class=\"card\"><h2>Where are you?</h2>";
   b += timezoneFields(v.tzId, v.customTzRule);
   b += "</section><section class=\"card\"><h2>When does your clock check the time?</h2>";
   b += scheduleFields(v.schedule);
@@ -292,7 +296,7 @@ std::string renderSettingsPage(const SettingsPageView &v) {
        "<input id=\"freq\" name=\"freq\" type=\"number\" min=\"39500\" max=\"40500\" step=\"10\" value=\"";
   b += freq;
   b += "\"><p class=\"help\">Only change this if you are tuning the antenna.</p></details>";
-  b += "<button type=\"submit\">Save</button></form>";
+  b += "<button type=\"submit\" class=\"save\">Save</button></form>";
 
   b += "<section class=\"card\"><h2>Device</h2><p>Software version ";
   b += htmlEscape(v.version);

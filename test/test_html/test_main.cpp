@@ -60,6 +60,17 @@ void test_setup_page_other_network_when_unmatched() {
   TEST_ASSERT_TRUE(contains(page, "name=\"ssid_other\" autocapitalize=\"none\" autocorrect=\"off\" value=\"Hidden\""));
 }
 
+void test_setup_page_preselects_first_network() {
+  SetupPageView v;
+  v.networks.push_back("Strongest");
+  v.networks.push_back("Weaker");
+  v.tzId = "warsaw";
+  v.schedule = twoSlots();
+  const std::string page = renderSetupPage(v);
+  TEST_ASSERT_TRUE(contains(page, "<option value=\"Strongest\" selected>Strongest</option>"));
+  TEST_ASSERT_TRUE(contains(page, "<option value=\"\">Other network&hellip;</option>"));
+}
+
 void test_settings_page() {
   SettingsPageView v;
   v.localTime = "13:18";
@@ -127,6 +138,7 @@ int main() {
   RUN_TEST(test_json_escape);
   RUN_TEST(test_setup_page);
   RUN_TEST(test_setup_page_other_network_when_unmatched);
+  RUN_TEST(test_setup_page_preselects_first_network);
   RUN_TEST(test_settings_page);
   RUN_TEST(test_settings_page_update_and_broadcasting);
   RUN_TEST(test_waiting_for_time);
