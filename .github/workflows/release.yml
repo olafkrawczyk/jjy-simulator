@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
 
 permissions:
   contents: write
@@ -34,7 +34,7 @@ jobs:
           export PLATFORMIO_BUILD_FLAGS="-DFW_VERSION=\\\"${VERSION}\\\""
           pio run -e esp32doit-devkit-v1
           cp .pio/build/esp32doit-devkit-v1/firmware.bin firmware.bin
-          grep -c "${VERSION}" firmware.bin
+          grep -cF "JJY 40 kHz simulator ${VERSION}" firmware.bin
 
       - name: Publish release
         env:

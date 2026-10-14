@@ -124,14 +124,14 @@ graph LR
 4. Pick the city you live in. Your clock will show that city's time.
 5. Keep the suggested broadcast times unless you know when your clock checks the time, then press **Connect**.
 
-When it says **Done!**, rejoin your home WiFi. You can change settings at **http://jjy.local**.
+When it says **Done!**, rejoin your home WiFi. You can change settings at **http://jjy.local**. If that address doesn't open (some Android phones can't use it), use the IP address shown on the **Done!** screen.
 
 The transmitter sleeps between broadcasts. To open the settings page, unplug it and plug it back in: it stays awake for 10 minutes.
 
 ## Changing WiFi
 
 - **From the settings page:** press **Forget WiFi**.
-- **If it can't reach your WiFi any more** (new router or password): unplug and replug it **three times within 10 seconds**. The JJY-Setup network comes back. Your time zone and schedule are kept.
+- **If it can't reach your WiFi any more** (new router or password): unplug it and plug it back in **three times in a row, quickly** (each time within 10 seconds). The JJY-Setup network comes back. Your time zone and schedule are kept.
 
 ## Updating
 
