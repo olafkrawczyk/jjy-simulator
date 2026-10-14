@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <ESPmDNS.h>
 #include <esp_sleep.h>
 
 #include "app_state.h"
@@ -25,6 +26,14 @@ const uint32_t kFreqStepHz = 10;
 bool setupMode = false;
 bool coldBootPending = false;
 bool stayAwakeLogged = false;
+bool networkReady = false;
+
+void serviceNetwork() {
+  if (networkReady || WiFi.status() != WL_CONNECTED) return;
+  networkReady = true;
+  if (MDNS.begin("jjy")) MDNS.addService("http", "tcp", 80);
+  Serial.printf("[WEB] Settings page: http://jjy.local (http://%s)\n", WiFi.localIP().toString().c_str());
+}
 
 String formatLocal(time_t epoch) {
   struct tm t;
@@ -162,6 +171,7 @@ void setup() {
   const bool timerWake = esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER;
   coldBootPending = !timerWake;
   connectWifi();
+  webUiBeginNormal();
   timeSyncBegin(app.settings.tzRule.c_str());
   if (WiFi.status() == WL_CONNECTED && timeSyncWaitForNtp(kNtpWaitMs)) {
     Serial.printf("[NTP] Synced: %s\n", formatLocal(time(nullptr)).c_str());
@@ -178,6 +188,9 @@ void loop() {
   if (setupMode) provisioningLoop();
   webUiLoop();
   if (app.restartAtMs != 0 && static_cast<int32_t>(millis() - app.restartAtMs) >= 0) ESP.restart();
-  if (!setupMode) runSchedule();
+  if (!setupMode) {
+    serviceNetwork();
+    runSchedule();
+  }
   delay(kLoopPeriodMs);
 }

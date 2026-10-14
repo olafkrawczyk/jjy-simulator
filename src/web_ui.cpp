@@ -9,6 +9,11 @@
 #include "provisioning.h"
 #include "settings_rules.h"
 #include "settings_store.h"
+#include "carrier.h"
+#include "schedule.h"
+#include "time_sync.h"
+#include "transmitter.h"
+#include "version.h"
 
 namespace {
 
@@ -144,6 +149,111 @@ void handleCaptiveRedirect() {
   server.send(302, "text/plain", "");
 }
 
+std::string formatLocalHHMM(time_t epoch) {
+  struct tm t;
+  localtime_r(&epoch, &t);
+  char buf[8];
+  strftime(buf, sizeof(buf), "%H:%M", &t);
+  return buf;
+}
+
+void markUiActivity() {
+  if (app.coldBootBroadcast && !app.uiHold) {
+    app.uiHold = true;
+    Serial.println("[WEB] Page opened during the start-up broadcast; sleep paused until Save.");
+  }
+}
+
+SettingsPageView settingsView(const DeviceSettings &s, const std::string &notice, const std::string &error) {
+  SettingsPageView v;
+  if (timeSyncClockValid()) {
+    const time_t now = time(nullptr);
+    v.localTime = formatLocalHHMM(now);
+    const time_t next = scheduleNextStart(app.settings.schedule, now);
+    if (next != 0) v.nextBroadcast = formatLocalHHMM(next);
+  }
+  v.broadcasting = txWindowActive();
+  v.tzId = s.tzId;
+  v.customTzRule = s.tzId == "custom" ? s.tzRule : "";
+  v.schedule = s.schedule;
+  v.freqHz = s.freqHz;
+  v.version = FW_VERSION;
+  v.updateVersion = app.latestVersion;
+  v.notice = notice;
+  v.error = error;
+  return v;
+}
+
+void handleSettingsPage() {
+  markUiActivity();
+  sendHtml(renderSettingsPage(settingsView(app.settings, "", "")));
+}
+
+void handleSave() {
+  DeviceSettings s = app.settings;
+  std::string tzError;
+  std::string scheduleError;
+  std::string error;
+  const bool tzOk = readTimezone(s, tzError);
+  const bool scheduleOk = readSchedule(s.schedule, scheduleError);
+  bool ok = tzOk && scheduleOk;
+  if (!ok) error = !tzOk ? tzError : scheduleError;
+  if (ok && server.hasArg("freq")) {
+    const long hz = server.arg("freq").toInt();
+    if (hz <= 0 || !settingsValidFreq(static_cast<uint32_t>(hz))) {
+      ok = false;
+      error = "Carrier frequency must be between 39500 and 40500 Hz.";
+    } else {
+      s.freqHz = static_cast<uint32_t>(hz);
+    }
+  }
+  if (ok && !settingsSave(s)) {
+    ok = false;
+    error = "Couldn't save the settings. Please try again.";
+  }
+  if (!ok) {
+    sendHtml(renderSettingsPage(settingsView(s, "", error)));
+    return;
+  }
+
+  const bool timingChanged = s.tzRule != app.settings.tzRule || !scheduleEquals(s.schedule, app.settings.schedule);
+  app.settings = s;
+  timeSyncSetTz(s.tzRule.c_str());
+  carrierSetFrequency(s.freqHz);
+  if (timingChanged && txWindowActive() && !app.coldBootBroadcast) txStopWindow();
+  app.uiHold = false;
+
+  SettingsPageView v = settingsView(app.settings, "", "");
+  v.notice = "Saved. ";
+  if (!v.nextBroadcast.empty()) v.notice += "Next broadcast at " + v.nextBroadcast + ". ";
+  v.notice += "The transmitter sleeps between broadcasts. To open this page again, unplug it and plug it back in.";
+  sendHtml(renderSettingsPage(v));
+}
+
+void handleForget() {
+  settingsForgetWifi();
+  app.restartAtMs = millis() + 3000;
+  sendHtml(renderMessagePage("WiFi forgotten", "The transmitter is restarting in setup mode. On your phone, join "
+                                               "the WiFi network " +
+                                                   provisioningApName() + " to set it up again."));
+}
+
+void handleStatus() {
+  const char *ota = app.otaState == OtaState::FAILED ? "failed" : (app.otaState == OtaState::IDLE ? "idle" : "updating");
+  std::string json = "{\"version\":\"";
+  json += jsonEscape(FW_VERSION);
+  json += "\",\"time\":\"";
+  if (timeSyncClockValid()) json += formatLocalHHMM(time(nullptr));
+  json += "\",\"broadcasting\":";
+  json += txWindowActive() ? "true" : "false";
+  json += ",\"ota\":\"";
+  json += ota;
+  json += "\",\"error\":\"";
+  json += jsonEscape(app.otaError);
+  json += "\"}";
+  sendJson(json);
+}
+
 }  // namespace
 
 void webUiBeginSetup() {
@@ -155,6 +265,18 @@ void webUiBeginSetup() {
   server.begin();
   started = true;
   Serial.println("[WEB] Setup page ready");
+}
+
+void webUiBeginNormal() {
+  setupMode = false;
+  server.on("/", HTTP_GET, handleSettingsPage);
+  server.on("/save", HTTP_POST, handleSave);
+  server.on("/forget", HTTP_POST, handleForget);
+  server.on("/status", HTTP_GET, handleStatus);
+  server.onNotFound([]() { server.send(404, "text/plain", "Not found"); });
+  server.begin();
+  started = true;
+  Serial.println("[WEB] Settings page ready");
 }
 
 void webUiLoop() {
