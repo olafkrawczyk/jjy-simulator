@@ -119,10 +119,22 @@ void test_dst_fall_back_second_occurrence_not_a_window() {
   TEST_ASSERT_FALSE(scheduleCurrentWindow(s, first + 3600 + 60, start, end));
 }
 
-void test_window_length_on_dst_day() {
+void test_window_across_spring_forward_jump() {
   time_t start, end;
-  TEST_ASSERT_TRUE(scheduleCurrentWindow(defaults(), local(2026, 3, 29, 1, 17), start, end));
+  const Schedule s = make({118}, 5);
+  TEST_ASSERT_TRUE(scheduleCurrentWindow(s, local(2026, 3, 29, 1, 59), start, end));
   TEST_ASSERT_EQUAL_INT64(300, end - start);
+  TEST_ASSERT_TRUE(scheduleCurrentWindow(s, start + 240, start, end));
+}
+
+void test_zone_without_dst() {
+  setenv("TZ", "JST-9", 1);
+  tzset();
+  const time_t next = scheduleNextStart(make({76}, 5), local(2026, 3, 29, 0, 0));
+  const struct tm t = parts(next);
+  TEST_ASSERT_EQUAL_INT(29, t.tm_mday);
+  TEST_ASSERT_EQUAL_INT(1, t.tm_hour);
+  TEST_ASSERT_EQUAL_INT(16, t.tm_min);
 }
 
 void test_sleep_until() {
@@ -130,6 +142,8 @@ void test_sleep_until() {
   TEST_ASSERT_TRUE(scheduleSleepUntil(defaults(), local(2026, 10, 14, 12, 0), wake));
   TEST_ASSERT_EQUAL_INT64(local(2026, 10, 14, 13, 14), wake);
   TEST_ASSERT_FALSE(scheduleSleepUntil(defaults(), local(2026, 10, 14, 13, 15), wake));
+  TEST_ASSERT_TRUE(scheduleSleepUntil(defaults(), local(2026, 10, 14, 13, 13, 30), wake));
+  TEST_ASSERT_EQUAL_INT64(local(2026, 10, 14, 13, 14), wake);
   TEST_ASSERT_FALSE(scheduleSleepUntil(defaults(), local(2026, 10, 14, 13, 13, 40), wake));
 }
 
@@ -151,7 +165,8 @@ int main() {
   RUN_TEST(test_dst_spring_forward_missing_time);
   RUN_TEST(test_dst_fall_back_runs_once);
   RUN_TEST(test_dst_fall_back_second_occurrence_not_a_window);
-  RUN_TEST(test_window_length_on_dst_day);
+  RUN_TEST(test_window_across_spring_forward_jump);
+  RUN_TEST(test_zone_without_dst);
   RUN_TEST(test_sleep_until);
   RUN_TEST(test_close_windows_stay_awake);
   return UNITY_END();

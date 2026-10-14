@@ -4,32 +4,47 @@
 
 namespace {
 
-// Resolves a wall-clock slot to an instant. When the time occurs twice (DST fall-back),
-// returns the earlier occurrence so the slot broadcasts once; when it does not exist
-// (spring-forward gap), lets mktime move it forward.
-time_t slotStart(const struct tm &base, uint16_t minutes, int dayOffset) {
-  struct tm t = base;
-  t.tm_mday += dayOffset;
-  t.tm_hour = minutes / 60;
-  t.tm_min = minutes % 60;
-  t.tm_sec = 0;
+// Days since 1970-01-01 for a proleptic Gregorian date; month 1..12, day may overflow the month.
+int64_t daysFromCivil(int64_t year, int month, int64_t day) {
+  year -= month <= 2;
+  const int64_t era = (year >= 0 ? year : year - 399) / 400;
+  const int64_t yearOfEra = year - era * 400;
+  const int64_t dayOfYear = (153 * (month > 2 ? month - 3 : month + 9) + 2) / 5;
+  const int64_t dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear;
+  return era * 146097 + dayOfEra - 719468 + (day - 1);
+}
 
-  time_t best = 0;
+int64_t wallSeconds(const struct tm &t) {
+  return daysFromCivil(t.tm_year + 1900, t.tm_mon + 1, t.tm_mday) * 86400 + t.tm_hour * 3600 + t.tm_min * 60 +
+         t.tm_sec;
+}
+
+int64_t utcOffsetAt(int64_t instant) {
+  const time_t t = static_cast<time_t>(instant);
+  struct tm local;
+  localtime_r(&t, &local);
+  return wallSeconds(local) - instant;
+}
+
+// Resolves a wall-clock slot to an instant without mktime, so glibc and newlib agree.
+// A time that occurs twice (DST fall-back) resolves to its first occurrence; a time that
+// does not exist (spring-forward gap) moves forward by the gap, e.g. 02:30 -> 03:30.
+time_t slotStart(const struct tm &base, uint16_t minutes, int dayOffset) {
+  const int64_t wall =
+      daysFromCivil(base.tm_year + 1900, base.tm_mon + 1, base.tm_mday + dayOffset) * 86400 + minutes * 60;
+  const int64_t offsetBefore = utcOffsetAt(wall - 86400);
+  const int64_t offsetAfter = utcOffsetAt(wall + 86400);
+  const int64_t offsets[] = {offsetBefore, offsetAfter};
   bool found = false;
-  for (int isdst = 0; isdst <= 1; ++isdst) {
-    struct tm candidate = t;
-    candidate.tm_isdst = isdst;
-    const time_t epoch = mktime(&candidate);
-    const bool sameWallTime = candidate.tm_isdst == isdst && candidate.tm_hour == t.tm_hour && candidate.tm_min == t.tm_min;
-    if (epoch != static_cast<time_t>(-1) && sameWallTime && (!found || epoch < best)) {
-      best = epoch;
+  int64_t best = 0;
+  for (int64_t offset : offsets) {
+    const int64_t instant = wall - offset;
+    if (utcOffsetAt(instant) == offset && (!found || instant < best)) {
+      best = instant;
       found = true;
     }
   }
-  if (found) return best;
-
-  t.tm_isdst = -1;
-  return mktime(&t);
+  return static_cast<time_t>(found ? best : wall - offsetBefore);
 }
 
 }  // namespace
