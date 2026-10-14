@@ -69,7 +69,8 @@ void carrierBegin(uint32_t frequencyHz) {
   cfg.duty_mode = MCPWM_DUTY_MODE_0;
   mcpwm_init(kUnit, kTimer, &cfg);
   const uint32_t dt = deadtimeTicks();
-  mcpwm_deadtime_enable(kUnit, kTimer, MCPWM_ACTIVE_HIGH_MODE, dt, dt);
+  const esp_err_t dtErr = mcpwm_deadtime_enable(kUnit, kTimer, MCPWM_ACTIVE_HIGH_MODE, dt, dt);
+  if (dtErr != ESP_OK) Serial.printf("[CARRIER] Dead-time enable failed: err=%d\n", static_cast<int>(dtErr));
   activeHz = frequencyHz;
   requestedHz = frequencyHz;
   applyDuty(0.0f);

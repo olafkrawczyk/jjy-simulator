@@ -72,7 +72,7 @@ void handleSerial() {
     }
     app.settings.freqHz = hz;
     carrierSetFrequency(hz);
-    settingsSave(app.settings);
+    if (!settingsSave(app.settings)) Serial.println("[PWM] Could not save the frequency.");
     Serial.printf("[PWM] %lu Hz\n", static_cast<unsigned long>(hz));
   }
 }
@@ -83,6 +83,7 @@ bool sleepBlocked() {
 }
 
 void sleepUntil(time_t now, time_t wake) {
+  if (!txStopWindowAndWait(100)) Serial.println("[SLEEP] Transmitter did not confirm carrier off.");
   Serial.printf("[SLEEP] Waking at %s (%ld s)\n", formatLocal(wake).c_str(), static_cast<long>(wake - now));
   Serial.flush();
   esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(wake - now) * 1000000ULL);

@@ -12,12 +12,13 @@ namespace {
 
 const BaseType_t kCore = 1;
 const UBaseType_t kPriority = 4;
-const uint32_t kStackWords = 4096;
+const uint32_t kStackBytes = 4096;
 
 portMUX_TYPE windowMux = portMUX_INITIALIZER_UNLOCKED;
 bool windowActive = false;
 time_t windowEnd = 0;
 uint32_t windowGeneration = 0;
+volatile uint32_t acknowledgedGeneration = 0;
 
 void txTask(void *) {
   JjySymbol frame[kJjyFrameLength];
@@ -45,9 +46,16 @@ void txTask(void *) {
     if (generation != seenGeneration) {
       seenGeneration = generation;
       lastSecond = -1;
+      if (timeSyncClockValid()) {
+        const time_t t = time(nullptr);
+        struct tm startLocal;
+        localtime_r(&t, &startLocal);
+        lastSecond = startLocal.tm_sec;  // first pulse starts on the next second boundary
+      }
       frameMinute = -1;
       pulseActive = false;
       carrierOff();
+      acknowledgedGeneration = generation;
     }
 
     if (!active || !timeSyncClockValid()) {
@@ -102,7 +110,7 @@ void txTask(void *) {
 
 }  // namespace
 
-void txBegin() { xTaskCreatePinnedToCore(txTask, "jjy_tx", kStackWords, nullptr, kPriority, nullptr, kCore); }
+void txBegin() { xTaskCreatePinnedToCore(txTask, "jjy_tx", kStackBytes, nullptr, kPriority, nullptr, kCore); }
 
 void txStartWindow(time_t end) {
   portENTER_CRITICAL(&windowMux);
@@ -110,6 +118,20 @@ void txStartWindow(time_t end) {
   windowEnd = end;
   ++windowGeneration;
   portEXIT_CRITICAL(&windowMux);
+}
+
+bool txStopWindowAndWait(uint32_t timeoutMs) {
+  uint32_t generation;
+  portENTER_CRITICAL(&windowMux);
+  windowActive = false;
+  generation = ++windowGeneration;
+  portEXIT_CRITICAL(&windowMux);
+  const uint32_t start = millis();
+  while (acknowledgedGeneration != generation) {
+    if (millis() - start >= timeoutMs) return false;
+    delay(1);
+  }
+  return true;
 }
 
 void txStopWindow() {

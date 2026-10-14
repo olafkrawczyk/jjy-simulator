@@ -35,7 +35,14 @@ void settingsLoad(DeviceSettings &s) {
   std::string tzId = readString("tz_id");
   std::string tzRule = readString("tz_rule");
   if (tzId.empty() && !tzRule.empty()) {
-    tzId = tzRule == tzFindById("warsaw")->posix ? "warsaw" : "custom";
+    tzId = "custom";
+    for (size_t i = 0; i < kTimezoneCount; ++i) {
+      if (tzRule == kTimezones[i].posix) {
+        tzId = kTimezones[i].id;
+        break;
+      }
+    }
+    prefs.putString("tz_id", tzId.c_str());
     Serial.printf("[NVS] Migrated time zone rule to id '%s'\n", tzId.c_str());
   }
   std::string resolved;
@@ -65,15 +72,17 @@ void settingsLoad(DeviceSettings &s) {
                 static_cast<unsigned>(s.schedule.count), static_cast<unsigned long>(s.freqHz));
 }
 
-void settingsSave(const DeviceSettings &s) {
-  if (!open()) return;
-  prefs.putString("wifi_ssid", s.wifiSsid.c_str());
-  prefs.putString("wifi_pass", s.wifiPass.c_str());
-  prefs.putString("tz_id", s.tzId.c_str());
-  prefs.putString("tz_rule", s.tzRule.c_str());
-  prefs.putBytes("slots", s.schedule.slotMinutes, s.schedule.count * sizeof(uint16_t));
-  prefs.putUChar("win_min", s.schedule.windowMinutes);
-  prefs.putUInt("freq_hz", s.freqHz);
+bool settingsSave(const DeviceSettings &s) {
+  if (!open()) return false;
+  bool ok = true;
+  ok &= prefs.putString("wifi_ssid", s.wifiSsid.c_str()) != 0 || s.wifiSsid.empty();
+  ok &= prefs.putString("wifi_pass", s.wifiPass.c_str()) != 0 || s.wifiPass.empty();
+  ok &= prefs.putString("tz_id", s.tzId.c_str()) != 0;
+  ok &= prefs.putString("tz_rule", s.tzRule.c_str()) != 0;
+  ok &= prefs.putBytes("slots", s.schedule.slotMinutes, s.schedule.count * sizeof(uint16_t)) != 0;
+  ok &= prefs.putUChar("win_min", s.schedule.windowMinutes) != 0;
+  ok &= prefs.putUInt("freq_hz", s.freqHz) != 0;
+  return ok;
 }
 
 void settingsForgetWifi() {
