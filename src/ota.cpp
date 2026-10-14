@@ -98,6 +98,9 @@ bool otaRunningImagePending() {
 void otaRollBack() {
   Serial.println("[OTA] New firmware never reached the network; rolling back.");
   Serial.flush();
-  esp_ota_mark_app_invalid_rollback_and_reboot();
+  const esp_err_t err = esp_ota_mark_app_invalid_rollback_and_reboot();
+  Serial.printf("[OTA] Rollback failed; restarting. (error %d)\n", static_cast<int>(err));
+  Serial.flush();
+  ESP.restart();
   for (;;) delay(1000);
 }

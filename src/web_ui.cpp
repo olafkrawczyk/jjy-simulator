@@ -31,24 +31,31 @@ bool candidateReady = false;
 bool pendingSaved = false;
 bool saveFailed = false;
 
-// Rejects cross-site POSTs: Origin (or else Referer) must name this device.
-bool originAllowed() {
-  String src = server.header("Origin");
-  if (src.length() == 0) src = server.header("Referer");
-  if (src.length() == 0) return true;
-  const int scheme = src.indexOf("://");
+// Host part of "scheme://host[:port]/..." (lower case, no port).
+String hostOf(const String &url) {
+  const int scheme = url.indexOf("://");
   const int start = scheme >= 0 ? scheme + 3 : 0;
-  int end = src.length();
-  for (int i = start; i < static_cast<int>(src.length()); ++i) {
-    const char c = src[i];
+  int end = url.length();
+  for (int i = start; i < static_cast<int>(url.length()); ++i) {
+    const char c = url[i];
     if (c == '/' || c == ':' || c == '?' || c == '#') {
       end = i;
       break;
     }
   }
-  String host = src.substring(start, end);
+  String host = url.substring(start, end);
   host.toLowerCase();
-  if (host == "jjy.local" || host == WiFi.localIP().toString() || host == WiFi.softAPIP().toString()) return true;
+  return host;
+}
+
+// Rejects cross-site POSTs: Origin (or else Referer) must match the Host the browser used.
+bool originAllowed() {
+  String src = server.header("Origin");
+  if (src.length() == 0) src = server.header("Referer");
+  if (src.length() == 0) return true;
+  const String own = server.hostHeader();
+  if (own.length() == 0) return true;
+  if (hostOf(src) == hostOf(own)) return true;
   server.send(403, "text/plain", "Forbidden");
   return false;
 }
