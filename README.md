@@ -116,27 +116,46 @@ graph LR
 | - | OA | Antenna Out A |
 | - | OB | Antenna Out B |
 
-## Configuration
+## Setting it up (no computer needed)
 
-Before flashing, create a `include/secrets.h` file based on `include/secrets.h.example` and fill in your WiFi credentials:
+1. Plug the transmitter into a USB charger.
+2. On your phone, join the WiFi network **JJY-Setup-XXXX**. A setup page opens by itself. If it doesn't, open any website and you'll be sent there.
+3. Pick your home WiFi and type its password.
+4. Pick the city you live in. Your clock will show that city's time.
+5. Keep the suggested broadcast times unless you know when your clock checks the time, then press **Connect**.
 
-```cpp
-#ifndef SECRETS_H
-#define SECRETS_H
+When it says **Done!**, rejoin your home WiFi. You can change settings at **http://jjy.local**.
 
-#define WIFI_SSID "your_ssid"
-#define WIFI_PASS "your_password"
+The transmitter sleeps between broadcasts. To open the settings page, unplug it and plug it back in: it stays awake for 10 minutes.
 
-#endif
-```
+## Changing WiFi
+
+- **From the settings page:** press **Forget WiFi**.
+- **If it can't reach your WiFi any more** (new router or password): unplug and replug it **three times within 10 seconds**. The JJY-Setup network comes back. Your time zone and schedule are kept.
+
+## Updating
+
+On the settings page, press **Check for updates**, then **Install**. Don't unplug it while it updates (about a minute). If an update fails, the previous version keeps running.
 
 ## Features
 
-- **Antiphase PWM Drive:** 40 kHz carrier frequency with configurable duty cycle.
-- **NTP Synchronization:** Automatically fetches precise time from NTP servers.
-- **Scheduled Transmissions:** Configurable transmission slots throughout the day.
-- **Web Interface:** Basic web UI for status monitoring and frequency adjustment.
-- **Deep Sleep:** Power-saving mode between scheduled transmission slots.
+- **Antiphase drive:** 40 kHz carrier on two pins in opposite phase, with dead time and a 5 ms soft ramp.
+- **Phone setup:** open setup hotspot with a captive portal, so no app is needed.
+- **Schedule:** up to 8 daily broadcast times with a shared length; deep sleep in between.
+- **Time zones:** city list that preselects the phone's zone, plus custom POSIX rules.
+- **Updates:** one-tap install from GitHub releases, with automatic rollback if a new version fails to start.
+
+## Development
+
+- Firmware: `pio run -e esp32doit-devkit-v1 -t upload`
+- Unit tests (Linux/macOS/WSL): `pio test -e native`
+- Serial commands at 115200 baud: `+` / `-` change the carrier by 10 Hz, `?` prints it.
+
+## Releasing
+
+Push a tag such as `v1.2.0`. GitHub Actions runs the tests, builds the firmware with that version number and publishes a release with `firmware.bin` attached. Devices see it under **Check for updates**.
+
+If GitHub changes its certificate authorities, regenerate `src/certs.h` with `tools/make_certs_header.sh` on a Linux machine.
 
 ## License
 
