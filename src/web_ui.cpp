@@ -14,6 +14,8 @@
 #include "time_sync.h"
 #include "transmitter.h"
 #include "version.h"
+#include "ota.h"
+#include "version_compare.h"
 
 namespace {
 
@@ -262,6 +264,35 @@ void handleStatus() {
   sendJson(json);
 }
 
+void handleUpdateCheck() {
+  markUiActivity();
+  OtaRelease release;
+  std::string error;
+  if (!otaFetchLatest(release, error)) {
+    sendHtml(renderSettingsPage(settingsView(app.settings, "", error)));
+    return;
+  }
+  if (versionCompare(release.version.c_str(), FW_VERSION) > 0) {
+    app.latestVersion = release.version;
+    app.latestUrl = release.url;
+    sendHtml(renderSettingsPage(settingsView(app.settings, "Version " + release.version + " is available.", "")));
+    return;
+  }
+  app.latestVersion.clear();
+  app.latestUrl.clear();
+  sendHtml(renderSettingsPage(settingsView(app.settings, "You're up to date.", "")));
+}
+
+void handleUpdateInstall() {
+  if (app.latestUrl.empty()) {
+    sendHtml(renderSettingsPage(settingsView(app.settings, "", "Check for updates first.")));
+    return;
+  }
+  app.otaState = OtaState::INSTALL_REQUESTED;
+  app.otaError.clear();
+  sendHtml(renderUpdatingPage(FW_VERSION));
+}
+
 }  // namespace
 
 void webUiBeginSetup() {
@@ -281,6 +312,8 @@ void webUiBeginNormal() {
   server.on("/save", HTTP_POST, handleSave);
   server.on("/forget", HTTP_POST, handleForget);
   server.on("/status", HTTP_GET, handleStatus);
+  server.on("/update/check", HTTP_POST, handleUpdateCheck);
+  server.on("/update/install", HTTP_POST, handleUpdateInstall);
   server.onNotFound([]() { server.send(404, "text/plain", "Not found"); });
   server.begin();
   started = true;

@@ -5,6 +5,7 @@
 
 #include "app_state.h"
 #include "carrier.h"
+#include "ota.h"
 #include "provisioning.h"
 #include "web_ui.h"
 #include "schedule.h"
@@ -12,6 +13,10 @@
 #include "time_sync.h"
 #include "transmitter.h"
 #include "version.h"
+
+// Keep a freshly installed image in PENDING_VERIFY until it has reached the network;
+// if it crashes before otaMarkRunningImageValid(), the bootloader rolls back.
+extern "C" bool verifyRollbackLater() { return true; }
 
 AppState app;
 
@@ -32,12 +37,29 @@ bool networkReady = false;
 void serviceNetwork() {
   if (networkReady || WiFi.status() != WL_CONNECTED) return;
   networkReady = true;
+  otaMarkRunningImageValid();
   if (MDNS.begin("jjy")) {
     MDNS.addService("http", "tcp", 80);
     Serial.printf("[WEB] Settings page: http://jjy.local (http://%s)\n", WiFi.localIP().toString().c_str());
   } else {
     Serial.printf("[WEB] mDNS failed; use http://%s\n", WiFi.localIP().toString().c_str());
   }
+}
+
+void runOta() {
+  if (app.otaState != OtaState::INSTALL_REQUESTED) return;
+  app.otaState = OtaState::INSTALLING;
+  if (!txStopWindowAndWait(100)) Serial.println("[OTA] Transmitter did not confirm carrier off.");
+  app.coldBootBroadcast = false;
+  Serial.printf("[OTA] Installing %s\n", app.latestVersion.c_str());
+  std::string error;
+  if (otaInstall(app.latestUrl, error)) {
+    Serial.println("[OTA] Installed; restarting.");
+    delay(500);
+    ESP.restart();
+  }
+  app.otaError = error;
+  app.otaState = OtaState::FAILED;
 }
 
 String formatLocal(time_t epoch) {
@@ -104,6 +126,7 @@ bool sleepBlocked() {
 
 void sleepUntil(time_t now, time_t wake) {
   if (!txStopWindowAndWait(100)) Serial.println("[SLEEP] Transmitter did not confirm carrier off.");
+  otaMarkRunningImageValid();
   Serial.printf("[SLEEP] Waking at %s (%ld s)\n", formatLocal(wake).c_str(), static_cast<long>(wake - now));
   Serial.flush();
   esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(wake - now) * 1000000ULL);
@@ -199,6 +222,7 @@ void loop() {
   if (app.restartAtMs != 0 && static_cast<int32_t>(millis() - app.restartAtMs) >= 0) ESP.restart();
   if (!setupMode) {
     serviceNetwork();
+    runOta();
     runSchedule();
   }
   delay(kLoopPeriodMs);
