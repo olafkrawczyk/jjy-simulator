@@ -13,7 +13,7 @@ bool parseVersion(const char *text, int parts[3]) {
     if (!isdigit(static_cast<unsigned char>(*text))) break;
     int value = 0;
     while (isdigit(static_cast<unsigned char>(*text))) {
-      value = value * 10 + (*text - '0');
+      if (value < 100000000) value = value * 10 + (*text - '0');
       ++text;
     }
     parts[i] = value;

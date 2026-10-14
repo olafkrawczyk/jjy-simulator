@@ -90,6 +90,9 @@ void test_version_compare() {
   TEST_ASSERT_EQUAL_INT(-1, versionCompare("dev", "1.0.0"));
   TEST_ASSERT_EQUAL_INT(0, versionCompare("dev", "dev"));
   TEST_ASSERT_EQUAL_INT(0, versionCompare("1.0.0-rc1", "1.0.0"));
+  TEST_ASSERT_EQUAL_INT(1, versionCompare("99999999999.0.0", "1.0.0"));
+  TEST_ASSERT_EQUAL_INT(-1, versionCompare(nullptr, "1.0.0"));
+  TEST_ASSERT_EQUAL_INT(-1, versionCompare("", "1.0.0"));
 }
 
 int main() {
