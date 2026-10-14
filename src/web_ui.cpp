@@ -1,0 +1,168 @@
+#include "web_ui.h"
+
+#include <Arduino.h>
+#include <WebServer.h>
+#include <WiFi.h>
+
+#include "app_state.h"
+#include "html.h"
+#include "provisioning.h"
+#include "settings_rules.h"
+#include "settings_store.h"
+
+namespace {
+
+const uint32_t kRestartAfterSetupMs = 30000;
+
+WebServer server(80);
+bool started = false;
+bool setupMode = false;
+DeviceSettings pending;
+bool pendingValid = false;
+bool pendingSaved = false;
+
+std::string arg(const char *name) { return std::string(server.arg(name).c_str()); }
+
+void sendHtml(const std::string &html) {
+  server.sendHeader("Cache-Control", "no-store");
+  server.send(200, "text/html; charset=utf-8", String(html.c_str()));
+}
+
+void sendJson(const std::string &json) {
+  server.sendHeader("Cache-Control", "no-store");
+  server.send(200, "application/json", String(json.c_str()));
+}
+
+bool readTimezone(DeviceSettings &s, std::string &error) {
+  s.tzId = arg("tz");
+  const std::string custom = arg("tz_custom");
+  std::string rule;
+  if (settingsResolveTz(s.tzId, custom, rule)) {
+    s.tzRule = rule;
+    return true;
+  }
+  if (s.tzId == "custom") {
+    s.tzRule = custom;
+    error = "That custom time-zone rule doesn't look right.";
+  } else {
+    error = "Please pick a time zone.";
+  }
+  return false;
+}
+
+bool readSchedule(Schedule &out, std::string &error) {
+  Schedule s = Schedule();
+  for (int i = 0; i < server.args(); ++i) {
+    if (server.argName(i) != "slot") continue;
+    String value = server.arg(i);
+    value.trim();
+    if (value.length() == 0) continue;
+    if (s.count >= kMaxSlots) {
+      error = scheduleErrorText(ScheduleError::TOO_MANY);
+      return false;
+    }
+    uint16_t minutes = 0;
+    if (!parseHHMM(value.c_str(), minutes)) {
+      error = scheduleErrorText(ScheduleError::OUT_OF_RANGE);
+      return false;
+    }
+    s.slotMinutes[s.count++] = minutes;
+  }
+  const long window = server.arg("win").toInt();
+  s.windowMinutes = (window > 0 && window <= 255) ? static_cast<uint8_t>(window) : 0;
+  scheduleSort(s);
+  out = s;
+  const ScheduleError result = scheduleValidate(s);
+  if (result != ScheduleError::OK) {
+    error = scheduleErrorText(result);
+    return false;
+  }
+  return true;
+}
+
+SetupPageView setupView(const std::string &error) {
+  const DeviceSettings &s = pendingValid ? pending : app.settings;
+  SetupPageView v;
+  v.networks = provisioningNetworks();
+  v.selectedSsid = s.wifiSsid;
+  v.tzId = s.tzId;
+  v.customTzRule = s.tzId == "custom" ? s.tzRule : "";
+  v.schedule = s.schedule;
+  v.autoDetectTz = !pendingValid;
+  v.error = error;
+  return v;
+}
+
+void handleSetupPage() {
+  if (server.hasArg("rescan")) provisioningScan();
+  const std::string error =
+      server.hasArg("failed") ? "Couldn't connect. Check the network name and password, then try again." : "";
+  sendHtml(renderSetupPage(setupView(error)));
+}
+
+void handleSetupSubmit() {
+  DeviceSettings s = app.settings;
+  s.wifiSsid = arg("ssid");
+  if (s.wifiSsid.empty()) s.wifiSsid = arg("ssid_other");
+  s.wifiPass = arg("pass");
+  std::string wifiError;
+  std::string tzError;
+  std::string scheduleError;
+  const bool wifiOk = settingsValidWifi(s.wifiSsid, s.wifiPass, wifiError);
+  const bool tzOk = readTimezone(s, tzError);
+  const bool scheduleOk = readSchedule(s.schedule, scheduleError);
+  pending = s;
+  pendingValid = true;
+  pendingSaved = false;
+  if (!wifiOk || !tzOk || !scheduleOk) {
+    sendHtml(renderSetupPage(setupView(!wifiOk ? wifiError : (!tzOk ? tzError : scheduleError))));
+    return;
+  }
+  provisioningBeginConnect(s.wifiSsid, s.wifiPass);
+  sendHtml(renderConnectingPage());
+}
+
+void handleSetupStatus() {
+  const ConnectState state = provisioningConnectState();
+  const char *name = state == ConnectState::CONNECTED ? "connected"
+                     : state == ConnectState::FAILED  ? "failed"
+                                                      : "connecting";
+  std::string json = "{\"state\":\"";
+  json += name;
+  json += "\",\"ip\":\"";
+  json += jsonEscape(provisioningStaIp());
+  json += "\"}";
+  sendJson(json);
+}
+
+void handleCaptiveRedirect() {
+  server.sendHeader("Location", String("http://") + WiFi.softAPIP().toString() + "/", true);
+  server.send(302, "text/plain", "");
+}
+
+}  // namespace
+
+void webUiBeginSetup() {
+  setupMode = true;
+  server.on("/", HTTP_GET, handleSetupPage);
+  server.on("/setup", HTTP_POST, handleSetupSubmit);
+  server.on("/setup/status", HTTP_GET, handleSetupStatus);
+  server.onNotFound(handleCaptiveRedirect);
+  server.begin();
+  started = true;
+  Serial.println("[WEB] Setup page ready");
+}
+
+void webUiLoop() {
+  if (!started) return;
+  server.handleClient();
+  if (setupMode && pendingValid && !pendingSaved && provisioningConnectState() == ConnectState::CONNECTED) {
+    pendingSaved = true;
+    if (settingsSave(pending)) {
+      app.restartAtMs = millis() + kRestartAfterSetupMs;
+      Serial.println("[SETUP] Settings saved; restarting in 30 s.");
+    } else {
+      Serial.println("[SETUP] Could not save settings.");
+    }
+  }
+}

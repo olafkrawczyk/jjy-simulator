@@ -4,6 +4,8 @@
 
 #include "app_state.h"
 #include "carrier.h"
+#include "provisioning.h"
+#include "web_ui.h"
 #include "schedule.h"
 #include "settings_store.h"
 #include "time_sync.h"
@@ -140,13 +142,20 @@ void setup() {
   WiFi.persistent(false);
 
   settingsLoad(app.settings);
+  if (provisioningResetGestureDetected()) {
+    Serial.println("[BOOT] Three quick power-ups: WiFi forgotten.");
+    app.settings.wifiSsid.clear();
+    app.settings.wifiPass.clear();
+  }
   timeSyncSetTz(app.settings.tzRule.c_str());
   carrierBegin(app.settings.freqHz);
   txBegin();
 
   if (app.settings.wifiSsid.empty()) {
     setupMode = true;
-    Serial.println("[BOOT] No WiFi saved.");
+    Serial.println("[BOOT] No WiFi saved; starting setup hotspot.");
+    provisioningStartAp();
+    webUiBeginSetup();
     return;
   }
 
@@ -164,7 +173,10 @@ void setup() {
 }
 
 void loop() {
+  provisioningBootCounterTick();
   handleSerial();
+  if (setupMode) provisioningLoop();
+  webUiLoop();
   if (app.restartAtMs != 0 && static_cast<int32_t>(millis() - app.restartAtMs) >= 0) ESP.restart();
   if (!setupMode) runSchedule();
   delay(kLoopPeriodMs);
