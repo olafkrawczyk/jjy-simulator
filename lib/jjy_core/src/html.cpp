@@ -242,7 +242,8 @@ std::string renderSetupPage(const SetupPageView &v) {
   return page("JJY setup", b, script);
 }
 
-std::string renderConnectingPage() {
+std::string renderConnectingPage(const std::string &hostname) {
+  const std::string url = "http://" + htmlEscape(hostname) + ".local";
   const std::string body =
       "<div id=\"st\" class=\"card\"><h1>Connecting&hellip;</h1>"
       "<p>This takes up to 20 seconds. Keep this page open.</p>"
@@ -252,7 +253,9 @@ std::string renderConnectingPage() {
       "if(s.state==='connected'){var st=document.getElementById('st');"
       "st.innerHTML='<h1>Done!</h1><p>The transmitter is connected to your WiFi.</p>"
       "<p>To change settings later, connect your phone to your home WiFi and open "
-      "<a href=\"http://jjy.local\">http://jjy.local</a></p>"
+      "<a href=\"" +
+      url + "\">" + url +
+      "</a></p>"
       "<p class=\"help\">If that address does not open, use <span id=\"ip\"></span></p>"
       "<p>This setup network turns off in a moment.</p>';"
       "document.getElementById('ip').textContent='http://'+s.ip;return}"
@@ -289,16 +292,15 @@ std::string renderSettingsPage(const SettingsPageView &v) {
   b += "</section><section class=\"card\"><h2>When does your clock check the time?</h2>";
   b += scheduleFields(v.schedule);
   b += "</section>";
-  char freq[16];
-  snprintf(freq, sizeof(freq), "%lu", static_cast<unsigned long>(v.freqHz));
-  b += "<details class=\"card\"><summary>Advanced</summary>"
-       "<label for=\"freq\">Carrier frequency (Hz)</label>"
-       "<input id=\"freq\" name=\"freq\" type=\"number\" min=\"39500\" max=\"40500\" step=\"10\" value=\"";
-  b += freq;
-  b += "\"><p class=\"help\">Only change this if you are tuning the antenna.</p></details>";
   b += "<button type=\"submit\" class=\"save\">Save</button></form>";
 
-  b += "<section class=\"card\"><h2>Device</h2><p>Software version ";
+  b += "<section class=\"card\"><h2>Device</h2>";
+  if (!v.hostname.empty()) {
+    b += "<p>Address http://";
+    b += htmlEscape(v.hostname);
+    b += ".local</p>";
+  }
+  b += "<p>Software version ";
   b += htmlEscape(v.version);
   b += "</p>";
   if (!v.updateVersion.empty()) {

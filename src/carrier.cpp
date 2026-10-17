@@ -24,8 +24,6 @@ const float kRampDuty[kRampSteps] = {0.0f, kDutyTarget * 0.25f, kDutyTarget * 0.
 
 enum class Ramp : uint8_t { NONE, UP, DOWN };
 
-volatile uint32_t requestedHz = 0;
-uint32_t activeHz = 0;
 float activeDuty = 0.0f;
 Ramp ramp = Ramp::NONE;
 uint8_t rampIndex = 0;
@@ -56,13 +54,13 @@ uint32_t deadtimeTicks() {
 
 }  // namespace
 
-void carrierBegin(uint32_t frequencyHz) {
+void carrierBegin() {
   pinMode(kPinLed, OUTPUT);
   digitalWrite(kPinLed, LOW);
   mcpwm_gpio_init(kUnit, MCPWM0A, kPinA);
   mcpwm_gpio_init(kUnit, MCPWM0B, kPinB);
   mcpwm_config_t cfg = {};
-  cfg.frequency = frequencyHz;
+  cfg.frequency = kCarrierHz;
   cfg.cmpr_a = 0.0f;
   cfg.cmpr_b = 0.0f;
   cfg.counter_mode = MCPWM_UP_COUNTER;
@@ -71,16 +69,10 @@ void carrierBegin(uint32_t frequencyHz) {
   const uint32_t dt = deadtimeTicks();
   const esp_err_t dtErr = mcpwm_deadtime_enable(kUnit, kTimer, MCPWM_ACTIVE_HIGH_MODE, dt, dt);
   if (dtErr != ESP_OK) Serial.printf("[CARRIER] Dead-time enable failed: err=%d\n", static_cast<int>(dtErr));
-  activeHz = frequencyHz;
-  requestedHz = frequencyHz;
   applyDuty(0.0f);
   Serial.printf("[CARRIER] GPIO%d/GPIO%d at %lu Hz, dead time %lu ticks\n", kPinA, kPinB,
-                static_cast<unsigned long>(frequencyHz), static_cast<unsigned long>(dt));
+                static_cast<unsigned long>(kCarrierHz), static_cast<unsigned long>(dt));
 }
-
-void carrierSetFrequency(uint32_t frequencyHz) { requestedHz = frequencyHz; }
-
-uint32_t carrierFrequency() { return requestedHz; }
 
 void carrierRampUp() {
   ramp = Ramp::UP;
@@ -104,12 +96,6 @@ void carrierOff() {
 bool carrierIsOn() { return activeDuty > 0.0f; }
 
 void carrierTick() {
-  const uint32_t hz = requestedHz;
-  if (hz != activeHz) {
-    mcpwm_set_frequency(kUnit, kTimer, hz);
-    activeHz = hz;
-    applyDuty(activeDuty);
-  }
   while (ramp != Ramp::NONE && micros() - rampStepStartUs >= kRampStepUs) {
     rampStepStartUs += kRampStepUs;
     if (ramp == Ramp::UP) {

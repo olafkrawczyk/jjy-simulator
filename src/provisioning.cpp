@@ -55,6 +55,15 @@ std::string provisioningApName() {
   return name;
 }
 
+// Same suffix as the setup hotspot, so several transmitters on one network don't share a name.
+std::string provisioningHostname() {
+  uint8_t mac[6];
+  esp_read_mac(mac, ESP_MAC_WIFI_STA);
+  char name[16];
+  snprintf(name, sizeof(name), "jjy-%02x%02x", mac[4], mac[5]);
+  return name;
+}
+
 void provisioningScan() {
   networks.clear();
   const int found = WiFi.scanNetworks();

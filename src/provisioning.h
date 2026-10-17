@@ -13,6 +13,7 @@ void provisioningLoop();
 void provisioningScan();
 const std::vector<std::string> &provisioningNetworks();
 std::string provisioningApName();
+std::string provisioningHostname();
 
 enum class ConnectState : uint8_t { IDLE, CONNECTING, CONNECTED, FAILED };
 void provisioningBeginConnect(const std::string &ssid, const std::string &pass);

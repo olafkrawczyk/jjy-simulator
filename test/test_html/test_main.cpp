@@ -71,18 +71,25 @@ void test_setup_page_preselects_first_network() {
   TEST_ASSERT_TRUE(contains(page, "<option value=\"\">Other network&hellip;</option>"));
 }
 
+void test_connecting_page_uses_hostname() {
+  const std::string page = renderConnectingPage("jjy-a1b2");
+  TEST_ASSERT_TRUE(contains(page, "<a href=\"http://jjy-a1b2.local\">http://jjy-a1b2.local</a>"));
+  TEST_ASSERT_FALSE(contains(page, "http://jjy.local"));
+}
+
 void test_settings_page() {
   SettingsPageView v;
   v.localTime = "13:18";
   v.nextBroadcast = "16:16";
   v.tzId = "tokyo";
   v.schedule = twoSlots();
-  v.freqHz = 40010;
+  v.hostname = "jjy-a1b2";
   v.version = "1.2.0";
   const std::string page = renderSettingsPage(v);
   TEST_ASSERT_TRUE(contains(page, "value=\"tokyo\" data-iana=\"Asia/Tokyo\" selected"));
+  TEST_ASSERT_TRUE(contains(page, "Address http://jjy-a1b2.local"));
   TEST_ASSERT_TRUE(contains(page, "Next broadcast at 16:16"));
-  TEST_ASSERT_TRUE(contains(page, "value=\"40010\""));
+  TEST_ASSERT_FALSE(contains(page, "name=\"freq\""));
   TEST_ASSERT_TRUE(contains(page, "Software version 1.2.0"));
   TEST_ASSERT_TRUE(contains(page, "action=\"/update/check\""));
   TEST_ASSERT_FALSE(contains(page, "action=\"/update/install\""));
@@ -118,7 +125,7 @@ void test_no_external_resources() {
   SettingsPageView settings;
   settings.tzId = "warsaw";
   settings.schedule = twoSlots();
-  const std::string pages[] = {renderSetupPage(setup), renderSettingsPage(settings), renderConnectingPage(),
+  const std::string pages[] = {renderSetupPage(setup), renderSettingsPage(settings), renderConnectingPage("jjy-a1b2"),
                                renderUpdatingPage("1.0.0"), renderMessagePage("t", "x")};
   for (const std::string &p : pages) {
     TEST_ASSERT_FALSE(contains(p, "<script src"));
@@ -139,6 +146,7 @@ int main() {
   RUN_TEST(test_setup_page);
   RUN_TEST(test_setup_page_other_network_when_unmatched);
   RUN_TEST(test_setup_page_preselects_first_network);
+  RUN_TEST(test_connecting_page_uses_hostname);
   RUN_TEST(test_settings_page);
   RUN_TEST(test_settings_page_update_and_broadcasting);
   RUN_TEST(test_waiting_for_time);

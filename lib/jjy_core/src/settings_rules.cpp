@@ -13,7 +13,6 @@ DeviceSettings settingsDefaults() {
   for (uint8_t i = 0; i < 4; ++i) s.schedule.slotMinutes[i] = kDefaultSlots[i];
   s.schedule.count = 4;
   s.schedule.windowMinutes = 5;
-  s.freqHz = kFreqDefaultHz;
   return s;
 }
 
@@ -53,8 +52,6 @@ bool settingsResolveTz(const std::string &id, const std::string &customRule, std
   ruleOut = entry->posix;
   return true;
 }
-
-bool settingsValidFreq(uint32_t hz) { return hz >= kFreqMinHz && hz <= kFreqMaxHz; }
 
 bool parseHHMM(const std::string &text, uint16_t &minutesOut) {
   size_t i = 0;

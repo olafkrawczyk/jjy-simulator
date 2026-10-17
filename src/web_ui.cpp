@@ -167,7 +167,7 @@ void handleSetupSubmit() {
   pendingSaved = false;
   saveFailed = false;
   provisioningBeginConnect(s.wifiSsid, s.wifiPass);
-  sendHtml(renderConnectingPage());
+  sendHtml(renderConnectingPage(provisioningHostname()));
 }
 
 void handleSetupStatus() {
@@ -217,7 +217,7 @@ SettingsPageView settingsView(const DeviceSettings &s, const std::string &notice
   v.tzId = s.tzId;
   v.customTzRule = s.tzId == "custom" ? s.tzRule : "";
   v.schedule = s.schedule;
-  v.freqHz = s.freqHz;
+  v.hostname = provisioningHostname();
   v.version = FW_VERSION;
   v.updateVersion = app.latestVersion;
   v.notice = notice;
@@ -240,18 +240,6 @@ void handleSave() {
   const bool scheduleOk = readSchedule(s.schedule, scheduleError);
   bool ok = tzOk && scheduleOk;
   if (!ok) error = !tzOk ? tzError : scheduleError;
-  if (ok && server.hasArg("freq")) {
-    const long hz = server.arg("freq").toInt();
-    if (hz <= 0 || !settingsValidFreq(static_cast<uint32_t>(hz))) {
-      ok = false;
-      char range[80];
-      snprintf(range, sizeof(range), "Carrier frequency must be between %lu and %lu Hz.",
-               static_cast<unsigned long>(kFreqMinHz), static_cast<unsigned long>(kFreqMaxHz));
-      error = range;
-    } else {
-      s.freqHz = static_cast<uint32_t>(hz);
-    }
-  }
   if (ok && !settingsSave(s)) {
     ok = false;
     error = "Couldn't save the settings. Please try again.";
@@ -264,7 +252,6 @@ void handleSave() {
   const bool timingChanged = s.tzRule != app.settings.tzRule || !scheduleEquals(s.schedule, app.settings.schedule);
   app.settings = s;
   timeSyncSetTz(s.tzRule.c_str());
-  carrierSetFrequency(s.freqHz);
   if (timingChanged && txWindowActive() && !app.coldBootBroadcast) txStopWindow();
   app.uiHold = false;
   app.sleepNotBeforeMs = millis() + 5000;

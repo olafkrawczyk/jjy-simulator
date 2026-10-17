@@ -24,7 +24,7 @@ struct SettingsPageView {
   std::string tzId;
   std::string customTzRule;
   Schedule schedule = Schedule();
-  uint32_t freqHz = 40000;
+  std::string hostname;
   std::string version;
   std::string updateVersion;  // non-empty shows the Install button
   std::string notice;
@@ -34,7 +34,7 @@ struct SettingsPageView {
 std::string htmlEscape(const std::string &text);
 std::string jsonEscape(const std::string &text);
 std::string renderSetupPage(const SetupPageView &view);
-std::string renderConnectingPage();
+std::string renderConnectingPage(const std::string &hostname);
 std::string renderSettingsPage(const SettingsPageView &view);
 std::string renderUpdatingPage(const std::string &currentVersion);
 std::string renderMessagePage(const std::string &title, const std::string &text);

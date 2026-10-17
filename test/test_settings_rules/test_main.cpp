@@ -16,7 +16,6 @@ void test_defaults() {
   TEST_ASSERT_EQUAL_UINT16(76, s.schedule.slotMinutes[0]);
   TEST_ASSERT_EQUAL_UINT16(976, s.schedule.slotMinutes[3]);
   TEST_ASSERT_EQUAL_UINT8(5, s.schedule.windowMinutes);
-  TEST_ASSERT_EQUAL_UINT32(40000, s.freqHz);
   TEST_ASSERT_TRUE(s.wifiSsid.empty());
   TEST_ASSERT_EQUAL(ScheduleError::OK, scheduleValidate(s.schedule));
 }
@@ -50,13 +49,6 @@ void test_resolve_tz() {
   TEST_ASSERT_EQUAL_STRING("UTC0", rule.c_str());
   TEST_ASSERT_FALSE(settingsResolveTz("custom", "bad rule", rule));
   TEST_ASSERT_FALSE(settingsResolveTz("atlantis", "", rule));
-}
-
-void test_freq() {
-  TEST_ASSERT_FALSE(settingsValidFreq(39490));
-  TEST_ASSERT_TRUE(settingsValidFreq(39500));
-  TEST_ASSERT_TRUE(settingsValidFreq(40500));
-  TEST_ASSERT_FALSE(settingsValidFreq(40510));
 }
 
 void test_parse_and_format_hhmm() {
@@ -101,7 +93,6 @@ int main() {
   RUN_TEST(test_wifi_rules);
   RUN_TEST(test_tz_rule_shape);
   RUN_TEST(test_resolve_tz);
-  RUN_TEST(test_freq);
   RUN_TEST(test_parse_and_format_hhmm);
   RUN_TEST(test_version_compare);
   return UNITY_END();

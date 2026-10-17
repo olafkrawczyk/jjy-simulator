@@ -124,7 +124,9 @@ graph LR
 4. Pick the city you live in. Your clock will show that city's time.
 5. Keep the suggested broadcast times unless you know when your clock checks the time, then press **Connect**.
 
-When it says **Done!**, rejoin your home WiFi. You can change settings at **http://jjy.local**. If that address doesn't open (some Android phones can't use it), use the IP address shown on the **Done!** screen.
+When it says **Done!**, rejoin your home WiFi. You can change settings at **http://jjy-xxxx.local**, where `xxxx` is the same code as in the setup network's name (the **Done!** screen shows the full address). If that address doesn't open (some Android phones can't use it), use the IP address shown on the **Done!** screen.
+
+Several transmitters can share one WiFi network: each has its own address. If they are close together, give them different broadcast times so their signals don't interfere.
 
 The transmitter sleeps between broadcasts. To open the settings page, unplug it and plug it back in: it stays awake for 10 minutes.
 
@@ -149,7 +151,6 @@ On the settings page, press **Check for updates**, then **Install**. Don't unplu
 
 - Firmware: `pio run -e esp32doit-devkit-v1 -t upload`
 - Unit tests (Linux/macOS/WSL): `pio test -e native`
-- Serial commands at 115200 baud: `+` / `-` change the carrier by 10 Hz, `?` prints it.
 
 ## Releasing
 

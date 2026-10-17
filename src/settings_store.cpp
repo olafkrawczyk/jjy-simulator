@@ -52,6 +52,7 @@ void settingsLoad(DeviceSettings &s) {
   }
 
   if (prefs.isKey("web_ovrd")) prefs.remove("web_ovrd");
+  if (prefs.isKey("freq_hz")) prefs.remove("freq_hz");
 
   const size_t length = prefs.isKey("slots") ? prefs.getBytesLength("slots") : 0;
   if (length >= sizeof(uint16_t) && length <= sizeof(s.schedule.slotMinutes) && length % sizeof(uint16_t) == 0) {
@@ -65,11 +66,8 @@ void settingsLoad(DeviceSettings &s) {
     }
   }
 
-  const uint32_t hz = prefs.isKey("freq_hz") ? prefs.getUInt("freq_hz", kFreqDefaultHz) : kFreqDefaultHz;
-  if (settingsValidFreq(hz)) s.freqHz = hz;
-
-  Serial.printf("[NVS] WiFi '%s', time zone %s, %u start times, %lu Hz\n", s.wifiSsid.c_str(), s.tzId.c_str(),
-                static_cast<unsigned>(s.schedule.count), static_cast<unsigned long>(s.freqHz));
+  Serial.printf("[NVS] WiFi '%s', time zone %s, %u start times\n", s.wifiSsid.c_str(), s.tzId.c_str(),
+                static_cast<unsigned>(s.schedule.count));
 }
 
 bool settingsSave(const DeviceSettings &s) {
@@ -81,7 +79,6 @@ bool settingsSave(const DeviceSettings &s) {
   ok &= prefs.putString("tz_rule", s.tzRule.c_str()) != 0;
   ok &= prefs.putBytes("slots", s.schedule.slotMinutes, s.schedule.count * sizeof(uint16_t)) != 0;
   ok &= prefs.putUChar("win_min", s.schedule.windowMinutes) != 0;
-  ok &= prefs.putUInt("freq_hz", s.freqHz) != 0;
   return ok;
 }
 

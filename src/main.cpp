@@ -27,7 +27,6 @@ const uint32_t kColdBootBroadcastSec = 10 * 60;
 const uint32_t kNtpWaitMs = 20000;
 const uint32_t kWifiConnectTimeoutMs = 20000;
 const uint32_t kLoopPeriodMs = 25;
-const uint32_t kFreqStepHz = 10;
 const uint32_t kUiHoldTimeoutMs = 15UL * 60UL * 1000UL;
 
 bool setupMode = false;
@@ -39,9 +38,11 @@ void serviceNetwork() {
   if (networkReady || WiFi.status() != WL_CONNECTED) return;
   networkReady = true;
   otaMarkRunningImageValid();
-  if (MDNS.begin("jjy")) {
+  const std::string hostname = provisioningHostname();
+  if (MDNS.begin(hostname.c_str())) {
     MDNS.addService("http", "tcp", 80);
-    Serial.printf("[WEB] Settings page: http://jjy.local (http://%s)\n", WiFi.localIP().toString().c_str());
+    Serial.printf("[WEB] Settings page: http://%s.local (http://%s)\n", hostname.c_str(),
+                  WiFi.localIP().toString().c_str());
   } else {
     Serial.printf("[WEB] mDNS failed; use http://%s\n", WiFi.localIP().toString().c_str());
   }
@@ -73,7 +74,7 @@ String formatLocal(time_t epoch) {
 
 void connectWifi() {
   WiFi.mode(WIFI_STA);
-  WiFi.setHostname("jjy");
+  WiFi.setHostname(provisioningHostname().c_str());
   WiFi.setAutoReconnect(true);
   WiFi.begin(app.settings.wifiSsid.c_str(), app.settings.wifiPass.c_str());
   Serial.printf("[WiFi] Connecting to %s", app.settings.wifiSsid.c_str());
@@ -87,32 +88,6 @@ void connectWifi() {
     Serial.printf("[WiFi] Connected, IP %s\n", WiFi.localIP().toString().c_str());
   } else {
     Serial.println("[WiFi] Not connected yet; retrying in the background.");
-  }
-}
-
-void handleSerial() {
-  while (Serial.available() > 0) {
-    const char c = static_cast<char>(Serial.read());
-    uint32_t hz = app.settings.freqHz;
-    if (c == '+') {
-      hz += kFreqStepHz;
-    } else if (c == '-') {
-      hz -= kFreqStepHz;
-    } else if (c == '?') {
-      Serial.printf("[PWM] %lu Hz (range %lu..%lu)\n", static_cast<unsigned long>(hz),
-                    static_cast<unsigned long>(kFreqMinHz), static_cast<unsigned long>(kFreqMaxHz));
-      continue;
-    } else {
-      continue;
-    }
-    if (!settingsValidFreq(hz)) {
-      Serial.println("[PWM] Limit reached.");
-      continue;
-    }
-    app.settings.freqHz = hz;
-    carrierSetFrequency(hz);
-    if (!settingsSave(app.settings)) Serial.println("[PWM] Could not save the frequency.");
-    Serial.printf("[PWM] %lu Hz\n", static_cast<unsigned long>(hz));
   }
 }
 
@@ -195,7 +170,7 @@ void setup() {
     app.settings.wifiPass.clear();
   }
   timeSyncSetTz(app.settings.tzRule.c_str());
-  carrierBegin(app.settings.freqHz);
+  carrierBegin();
   txBegin();
 
   if (app.settings.wifiSsid.empty()) {
@@ -222,7 +197,6 @@ void setup() {
 
 void loop() {
   provisioningBootCounterTick();
-  handleSerial();
   if (setupMode) provisioningLoop();
   webUiLoop();
   if (app.restartAtMs != 0 && static_cast<int32_t>(millis() - app.restartAtMs) >= 0) ESP.restart();
