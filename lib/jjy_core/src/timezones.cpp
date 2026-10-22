@@ -1,5 +1,7 @@
 #include "timezones.h"
 
+#include <ctype.h>
+#include <stdio.h>
 #include <string.h>
 
 #define CET_RULE "CET-1CEST,M3.5.0,M10.5.0/3"
@@ -67,4 +69,34 @@ const TzEntry *tzFindById(const char *id) {
     if (strcmp(kTimezones[i].id, id) == 0) return &kTimezones[i];
   }
   return nullptr;
+}
+
+std::string tzStandardOffsetLabel(const char *posix) {
+  const char *p = posix;
+  if (*p == '<') {
+    p = strchr(p, '>');
+    if (p == nullptr) return std::string();
+    ++p;
+  } else {
+    while (isalpha(static_cast<unsigned char>(*p))) ++p;
+  }
+  // POSIX offsets count hours west of Greenwich, so the sign is the reverse of GMT+X.
+  bool east = false;
+  if (*p == '+' || *p == '-') east = *p++ == '-';
+  if (!isdigit(static_cast<unsigned char>(*p))) return std::string();
+  int hours = 0;
+  while (isdigit(static_cast<unsigned char>(*p))) hours = hours * 10 + (*p++ - '0');
+  int minutes = 0;
+  if (*p == ':' && isdigit(static_cast<unsigned char>(p[1]))) {
+    ++p;
+    while (isdigit(static_cast<unsigned char>(*p))) minutes = minutes * 10 + (*p++ - '0');
+  }
+  char buf[16];
+  const char sign = (east || (hours == 0 && minutes == 0)) ? '+' : '-';
+  if (minutes != 0) {
+    snprintf(buf, sizeof(buf), "GMT%c%d:%02d", sign, hours, minutes);
+  } else {
+    snprintf(buf, sizeof(buf), "GMT%c%d", sign, hours);
+  }
+  return buf;
 }

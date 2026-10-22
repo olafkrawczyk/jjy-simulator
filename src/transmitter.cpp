@@ -120,6 +120,16 @@ void txStartWindow(time_t end) {
   portEXIT_CRITICAL(&windowMux);
 }
 
+void txExtendWindow(time_t end) {
+  portENTER_CRITICAL(&windowMux);
+  if (!windowActive) {
+    windowActive = true;
+    ++windowGeneration;
+  }
+  windowEnd = end;
+  portEXIT_CRITICAL(&windowMux);
+}
+
 bool txStopWindowAndWait(uint32_t timeoutMs) {
   uint32_t generation;
   portENTER_CRITICAL(&windowMux);

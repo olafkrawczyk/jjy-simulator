@@ -52,7 +52,7 @@ void runOta() {
   if (app.otaState != OtaState::INSTALL_REQUESTED) return;
   app.otaState = OtaState::INSTALLING;
   if (!txStopWindowAndWait(100)) Serial.println("[OTA] Transmitter did not confirm carrier off.");
-  app.coldBootBroadcast = false;
+  app.unscheduledBroadcast = false;
   Serial.printf("[OTA] Installing %s\n", app.latestVersion.c_str());
   std::string error;
   if (otaInstall(app.latestUrl, error)) {
@@ -120,7 +120,7 @@ void runSchedule() {
 
   if (coldBootPending) {
     coldBootPending = false;
-    app.coldBootBroadcast = true;
+    app.unscheduledBroadcast = true;
     txStartWindow(now + kColdBootBroadcastSec);
     Serial.printf("[BOOT] Start-up broadcast until %s\n", formatLocal(now + kColdBootBroadcastSec).c_str());
     return;
@@ -129,7 +129,7 @@ void runSchedule() {
   if (txWindowActive()) {
     if (now < txWindowEnd()) return;
     txStopWindow();
-    app.coldBootBroadcast = false;
+    app.unscheduledBroadcast = false;
     Serial.printf("[SCHED] Broadcast finished at %s\n", formatLocal(now).c_str());
   }
 

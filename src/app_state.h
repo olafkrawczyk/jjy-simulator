@@ -11,7 +11,7 @@ enum class OtaState : uint8_t { IDLE, INSTALL_REQUESTED, INSTALLING, FAILED };
 // Touched only from the Arduino loop task (setup, loop and web handlers).
 struct AppState {
   DeviceSettings settings;
-  bool coldBootBroadcast = false;
+  bool unscheduledBroadcast = false;  // start-up or "Broadcast now" window; schedule edits don't stop it
   bool uiHold = false;
   uint32_t uiHoldLastMs = 0;  // uiHold expires 15 minutes after the last page request
   uint32_t sleepNotBeforeMs = 0;  // 0 = unset; keeps the device awake briefly after Save so the reply is delivered

@@ -45,7 +45,8 @@ void test_setup_page() {
   TEST_ASSERT_TRUE(contains(page, "Bad &amp; wrong"));
   TEST_ASSERT_TRUE(contains(page, "name=\"slot\" required value=\"01:16\""));
   TEST_ASSERT_TRUE(contains(page, "name=\"slot\" required value=\"16:16\""));
-  TEST_ASSERT_TRUE(contains(page, "value=\"warsaw\" data-iana=\"Europe/Warsaw\" selected"));
+  TEST_ASSERT_TRUE(contains(page, "value=\"warsaw\" data-iana=\"Europe/Warsaw\" selected>(GMT+1) Warsaw</option>"));
+  TEST_ASSERT_TRUE(contains(page, ">(GMT+5:30) Delhi / Mumbai</option>"));
   TEST_ASSERT_TRUE(contains(page, "resolvedOptions().timeZone"));
   TEST_ASSERT_TRUE(contains(page, "action=\"/setup\""));
 }
@@ -89,6 +90,10 @@ void test_settings_page() {
   TEST_ASSERT_TRUE(contains(page, "value=\"tokyo\" data-iana=\"Asia/Tokyo\" selected"));
   TEST_ASSERT_TRUE(contains(page, "Address http://jjy-a1b2.local"));
   TEST_ASSERT_TRUE(contains(page, "Next broadcast at 16:16"));
+  TEST_ASSERT_TRUE(contains(page, "action=\"/broadcast\""));
+  TEST_ASSERT_TRUE(contains(page, "Broadcast for 10 minutes"));
+  TEST_ASSERT_TRUE(contains(page, "<p id=\"tzs\" class=\"help hint\" hidden>Press Save below to use this time zone.</p>"));
+  TEST_ASSERT_TRUE(contains(page, "tz.addEventListener('change',tzDirty)"));
   TEST_ASSERT_FALSE(contains(page, "name=\"freq\""));
   TEST_ASSERT_TRUE(contains(page, "Software version 1.2.0"));
   TEST_ASSERT_TRUE(contains(page, "action=\"/update/check\""));
@@ -109,6 +114,9 @@ void test_settings_page_update_and_broadcasting() {
   TEST_ASSERT_TRUE(contains(page, "Broadcasting now"));
   TEST_ASSERT_TRUE(contains(page, "Install version 1.3.0"));
   TEST_ASSERT_TRUE(contains(page, "action=\"/update/install\""));
+
+  v.broadcastUntil = "13:28";
+  TEST_ASSERT_TRUE(contains(renderSettingsPage(v), "Broadcasting until 13:28"));
 }
 
 void test_waiting_for_time() {
@@ -116,6 +124,7 @@ void test_waiting_for_time() {
   v.tzId = "warsaw";
   v.schedule = twoSlots();
   TEST_ASSERT_TRUE(contains(renderSettingsPage(v), "Waiting for the time from the internet"));
+  TEST_ASSERT_FALSE(contains(renderSettingsPage(v), "action=\"/broadcast\""));
 }
 
 void test_no_external_resources() {

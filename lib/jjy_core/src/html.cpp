@@ -31,7 +31,7 @@ const char kCss[] =
     ".msg.error{color:var(--danger)}.msg.ok{color:var(--ok)}"
     ".big{font-size:32px;font-weight:700;line-height:1.2}"
     "summary{cursor:pointer;font-weight:600}a{color:var(--accent)}"
-    ".save{margin-bottom:16px}";
+    ".save{margin-bottom:16px}.hint{color:var(--accent);font-weight:600}";
 
 const char kScheduleScript[] =
     "var slots=document.getElementById('slots');"
@@ -79,7 +79,9 @@ std::string timezoneFields(const std::string &tzId, const std::string &customRul
     out += htmlEscape(e.iana);
     out += "\"";
     if (tzId == e.id) out += " selected";
-    out += ">";
+    out += ">(";
+    out += tzStandardOffsetLabel(e.posix);
+    out += ") ";
     out += htmlEscape(e.label);
     out += "</option>";
   }
@@ -276,19 +278,27 @@ std::string renderSettingsPage(const SettingsPageView &v) {
     b += "<div class=\"big\">";
     b += htmlEscape(v.localTime);
     b += "</div>";
-    if (v.broadcasting) {
+    if (v.broadcasting && !v.broadcastUntil.empty()) {
+      b += "<p>Broadcasting until ";
+      b += htmlEscape(v.broadcastUntil);
+      b += "</p>";
+    } else if (v.broadcasting) {
       b += "<p>Broadcasting now</p>";
     } else if (!v.nextBroadcast.empty()) {
       b += "<p>Next broadcast at ";
       b += htmlEscape(v.nextBroadcast);
       b += "</p>";
     }
+    b += "<form method=\"post\" action=\"/broadcast\"><button type=\"submit\" class=\"secondary\">"
+         "Broadcast for 10 minutes</button></form>"
+         "<p class=\"help\">To sync your clock now, press this, then start reception on the clock.</p>";
   }
   b += "</section>";
 
   b += "<form method=\"post\" action=\"/save\">";
   b += "<section class=\"card\"><h2>Where are you?</h2>";
   b += timezoneFields(v.tzId, v.customTzRule);
+  b += "<p id=\"tzs\" class=\"help hint\" hidden>Press Save below to use this time zone.</p>";
   b += "</section><section class=\"card\"><h2>When does your clock check the time?</h2>";
   b += scheduleFields(v.schedule);
   b += "</section>";
@@ -316,6 +326,9 @@ std::string renderSettingsPage(const SettingsPageView &v) {
        "<button type=\"submit\" class=\"danger\">Forget WiFi</button></form></section>";
 
   std::string script = timezoneScript(false);
+  script += "var tzs=document.getElementById('tzs');"
+            "function tzDirty(){tzs.hidden=false}"
+            "tz.addEventListener('change',tzDirty);document.getElementById('tz_custom').addEventListener('input',tzDirty);";
   script += kScheduleScript;
   return page("JJY clock transmitter", b, script);
 }

@@ -1,5 +1,6 @@
 #include <unity.h>
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -79,10 +80,42 @@ void test_find_by_id() {
   TEST_ASSERT_NULL(tzFindById("custom"));
 }
 
+void test_standard_offset_label_formats() {
+  TEST_ASSERT_EQUAL_STRING("GMT+1", tzStandardOffsetLabel("CET-1CEST,M3.5.0,M10.5.0/3").c_str());
+  TEST_ASSERT_EQUAL_STRING("GMT-8", tzStandardOffsetLabel("PST8PDT,M3.2.0,M11.1.0").c_str());
+  TEST_ASSERT_EQUAL_STRING("GMT-3", tzStandardOffsetLabel("<-03>3").c_str());
+  TEST_ASSERT_EQUAL_STRING("GMT+5:30", tzStandardOffsetLabel("IST-5:30").c_str());
+  TEST_ASSERT_EQUAL_STRING("GMT+9:30", tzStandardOffsetLabel("ACST-9:30ACDT,M10.1.0,M4.1.0/3").c_str());
+  TEST_ASSERT_EQUAL_STRING("GMT+0", tzStandardOffsetLabel("UTC0").c_str());
+  TEST_ASSERT_EQUAL_STRING("GMT+3", tzStandardOffsetLabel("<+03>-3").c_str());
+  TEST_ASSERT_EQUAL_STRING("", tzStandardOffsetLabel("<broken").c_str());
+  TEST_ASSERT_EQUAL_STRING("", tzStandardOffsetLabel("CET").c_str());
+}
+
+// The standard offset is the smaller of the January and July offsets in both hemispheres.
+void test_every_entry_label_matches_standard_offset() {
+  const size_t expectedCount = sizeof(kExpected) / sizeof(kExpected[0]);
+  for (size_t i = 0; i < expectedCount; ++i) {
+    const long standard = kExpected[i].january < kExpected[i].july ? kExpected[i].january : kExpected[i].july;
+    const long magnitude = standard < 0 ? -standard : standard;
+    char expected[32];
+    if (magnitude % 3600 != 0) {
+      snprintf(expected, sizeof(expected), "GMT%c%ld:%02ld", standard < 0 ? '-' : '+', magnitude / 3600,
+               magnitude % 3600 / 60);
+    } else {
+      snprintf(expected, sizeof(expected), "GMT%c%ld", standard < 0 ? '-' : '+', magnitude / 3600);
+    }
+    TEST_ASSERT_EQUAL_STRING_MESSAGE(expected, tzStandardOffsetLabel(tzFindById(kExpected[i].id)->posix).c_str(),
+                                     kExpected[i].id);
+  }
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_every_entry_has_expected_offsets);
   RUN_TEST(test_ids_unique_and_labels_present);
   RUN_TEST(test_find_by_id);
+  RUN_TEST(test_standard_offset_label_formats);
+  RUN_TEST(test_every_entry_label_matches_standard_offset);
   return UNITY_END();
 }

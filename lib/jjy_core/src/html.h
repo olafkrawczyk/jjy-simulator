@@ -21,6 +21,7 @@ struct SettingsPageView {
   std::string localTime;      // empty while the clock is not valid
   std::string nextBroadcast;  // "HH:MM", empty if unknown
   bool broadcasting = false;
+  std::string broadcastUntil;  // "HH:MM" end of the current broadcast, empty if unknown
   std::string tzId;
   std::string customTzRule;
   Schedule schedule = Schedule();

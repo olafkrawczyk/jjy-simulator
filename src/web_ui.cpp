@@ -20,6 +20,7 @@
 namespace {
 
 const uint32_t kRestartAfterSetupMs = 30000;
+const uint32_t kBroadcastNowSec = 10 * 60;
 
 WebServer server(80);
 bool started = false;
@@ -198,9 +199,9 @@ std::string formatLocalHHMM(time_t epoch) {
 }
 
 void markUiActivity() {
-  if (app.coldBootBroadcast && !app.uiHold) {
+  if (app.unscheduledBroadcast && !app.uiHold) {
     app.uiHold = true;
-    Serial.println("[WEB] Page opened during the start-up broadcast; sleep paused until Save.");
+    Serial.println("[WEB] Page opened during an unscheduled broadcast; sleep paused until Save.");
   }
   if (app.uiHold) app.uiHoldLastMs = millis();
 }
@@ -214,6 +215,7 @@ SettingsPageView settingsView(const DeviceSettings &s, const std::string &notice
     if (next != 0) v.nextBroadcast = formatLocalHHMM(next);
   }
   v.broadcasting = txWindowActive();
+  if (v.broadcasting && timeSyncClockValid()) v.broadcastUntil = formatLocalHHMM(txWindowEnd());
   v.tzId = s.tzId;
   v.customTzRule = s.tzId == "custom" ? s.tzRule : "";
   v.schedule = s.schedule;
@@ -252,7 +254,7 @@ void handleSave() {
   const bool timingChanged = s.tzRule != app.settings.tzRule || !scheduleEquals(s.schedule, app.settings.schedule);
   app.settings = s;
   timeSyncSetTz(s.tzRule.c_str());
-  if (timingChanged && txWindowActive() && !app.coldBootBroadcast) txStopWindow();
+  if (timingChanged && txWindowActive() && !app.unscheduledBroadcast) txStopWindow();
   app.uiHold = false;
   app.sleepNotBeforeMs = millis() + 5000;
   if (app.sleepNotBeforeMs == 0) app.sleepNotBeforeMs = 1;
@@ -261,6 +263,29 @@ void handleSave() {
   v.notice = "Saved. ";
   if (!v.nextBroadcast.empty()) v.notice += "Next broadcast at " + v.nextBroadcast + ". ";
   v.notice += "The transmitter sleeps between broadcasts. To open this page again, unplug it and plug it back in.";
+  sendHtml(renderSettingsPage(v));
+}
+
+void handleBroadcastNow() {
+  if (!originAllowed()) return;
+  if (!timeSyncClockValid()) {
+    sendHtml(renderSettingsPage(
+        settingsView(app.settings, "", "The transmitter doesn't know the time yet. Try again in a minute.")));
+    return;
+  }
+  if (app.otaState == OtaState::INSTALL_REQUESTED || app.otaState == OtaState::INSTALLING) {
+    sendHtml(renderSettingsPage(settingsView(app.settings, "", "An update is being installed. Try again later.")));
+    return;
+  }
+  const time_t end = time(nullptr) + kBroadcastNowSec;
+  if (!txWindowActive() || txWindowEnd() < end) {
+    txExtendWindow(end);
+    app.unscheduledBroadcast = true;
+    Serial.printf("[WEB] Broadcast now until %s\n", formatLocalHHMM(end).c_str());
+  }
+  markUiActivity();
+  SettingsPageView v = settingsView(app.settings, "", "");
+  v.notice = "Broadcasting until " + v.broadcastUntil + ". Start reception on your clock now.";
   sendHtml(renderSettingsPage(v));
 }
 
@@ -345,6 +370,7 @@ void webUiBeginNormal() {
   setupMode = false;
   server.on("/", HTTP_GET, handleSettingsPage);
   server.on("/save", HTTP_POST, handleSave);
+  server.on("/broadcast", HTTP_POST, handleBroadcastNow);
   server.on("/forget", HTTP_POST, handleForget);
   server.on("/status", HTTP_GET, handleStatus);
   server.on("/update/check", HTTP_POST, handleUpdateCheck);
