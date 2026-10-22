@@ -6,12 +6,14 @@
 #include "timezones.h"
 
 DeviceSettings settingsDefaults() {
-  static const uint16_t kDefaultSlots[] = {76, 256, 796, 976};
+  // 01:16, 02:00, 03:16, 04:00, 13:16, 15:16, 16:16
+  static const uint16_t kDefaultSlots[] = {76, 120, 196, 240, 796, 916, 976};
+  static const uint8_t kDefaultCount = sizeof(kDefaultSlots) / sizeof(kDefaultSlots[0]);
   DeviceSettings s;
   s.tzId = "warsaw";
   s.tzRule = tzFindById("warsaw")->posix;
-  for (uint8_t i = 0; i < 4; ++i) s.schedule.slotMinutes[i] = kDefaultSlots[i];
-  s.schedule.count = 4;
+  for (uint8_t i = 0; i < kDefaultCount; ++i) s.schedule.slotMinutes[i] = kDefaultSlots[i];
+  s.schedule.count = kDefaultCount;
   s.schedule.windowMinutes = 5;
   return s;
 }

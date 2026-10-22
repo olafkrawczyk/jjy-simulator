@@ -12,9 +12,11 @@ void test_defaults() {
   const DeviceSettings s = settingsDefaults();
   TEST_ASSERT_EQUAL_STRING("warsaw", s.tzId.c_str());
   TEST_ASSERT_EQUAL_STRING("CET-1CEST,M3.5.0/2,M10.5.0/3", s.tzRule.c_str());
-  TEST_ASSERT_EQUAL_UINT8(4, s.schedule.count);
+  TEST_ASSERT_EQUAL_UINT8(7, s.schedule.count);
   TEST_ASSERT_EQUAL_UINT16(76, s.schedule.slotMinutes[0]);
-  TEST_ASSERT_EQUAL_UINT16(976, s.schedule.slotMinutes[3]);
+  TEST_ASSERT_EQUAL_UINT16(120, s.schedule.slotMinutes[1]);
+  TEST_ASSERT_EQUAL_UINT16(240, s.schedule.slotMinutes[3]);
+  TEST_ASSERT_EQUAL_UINT16(976, s.schedule.slotMinutes[6]);
   TEST_ASSERT_EQUAL_UINT8(5, s.schedule.windowMinutes);
   TEST_ASSERT_TRUE(s.wifiSsid.empty());
   TEST_ASSERT_EQUAL(ScheduleError::OK, scheduleValidate(s.schedule));
