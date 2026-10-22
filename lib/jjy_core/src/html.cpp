@@ -31,7 +31,9 @@ const char kCss[] =
     ".msg.error{color:var(--danger)}.msg.ok{color:var(--ok)}"
     ".big{font-size:32px;font-weight:700;line-height:1.2}"
     "summary{cursor:pointer;font-weight:600}a{color:var(--accent)}"
-    ".save{margin-bottom:16px}.hint{color:var(--accent);font-weight:600}";
+    ".save{margin-bottom:16px}.hint{color:var(--accent);font-weight:600}"
+    ".bar{height:10px;background:var(--line);border-radius:5px;overflow:hidden;margin:8px 0 0}"
+    ".bar>div{height:100%;background:var(--accent);transition:width 1s linear}";
 
 const char kScheduleScript[] =
     "var slots=document.getElementById('slots');"
@@ -106,6 +108,48 @@ std::string timezoneScript(bool autoDetect) {
          "if(a&&(' '+a+' ').indexOf(z)>=0){tz.selectedIndex=i;break}}}catch(e){}";
   }
   s += "tzUpd();";
+  return s;
+}
+
+std::string broadcastStatus(const SettingsPageView &v) {
+  if (v.broadcasting) return v.broadcastUntil.empty() ? "Broadcasting now" : "Broadcasting until " + v.broadcastUntil;
+  if (!v.nextBroadcast.empty()) return "Next broadcast at " + v.nextBroadcast;
+  return "";
+}
+
+// Rendered with the current progress so it shows without script; progressScript() then moves it every second.
+std::string progressBar(const SettingsPageView &v) {
+  const bool shown = v.broadcasting && v.windowTotalSec > 0;
+  const uint32_t elapsed = v.windowElapsedSec < v.windowTotalSec ? v.windowElapsedSec : v.windowTotalSec;
+  const unsigned percent = shown ? static_cast<unsigned>(elapsed * 100ULL / v.windowTotalSec) : 0;
+  const uint32_t left = shown ? v.windowTotalSec - elapsed : 0;
+  char buf[400];
+  snprintf(buf, sizeof(buf),
+           "<div id=\"bw\"%s><div class=\"bar\" role=\"progressbar\" aria-label=\"Broadcast progress\" "
+           "aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"%u\"><div id=\"barf\" style=\"width:%u%%\"></div>"
+           "</div><p id=\"barl\" class=\"help\">%u:%02u left</p></div>",
+           shown ? "" : " hidden", percent, percent, static_cast<unsigned>(left / 60), static_cast<unsigned>(left % 60));
+  return buf;
+}
+
+// Animates the bar locally and refreshes it from /window, so it follows broadcasts started by power-up,
+// the Broadcast button or the schedule, including ones that begin while the page is open.
+std::string progressScript(const SettingsPageView &v) {
+  std::string s = "var W=";
+  s += renderWindowJson(v);
+  s += ",t0=Date.now(),bc=document.getElementById('bc'),bw=document.getElementById('bw'),"
+       "barf=document.getElementById('barf'),barl=document.getElementById('barl'),bar=bw.firstChild;"
+       "function mmss(x){x=Math.max(0,Math.ceil(x));return Math.floor(x/60)+':'+('0'+x%60).slice(-2)}"
+       "function draw(){var el=W.elapsed+(Date.now()-t0)/1000,live=W.on&&(!W.total||el<W.total);"
+       "bw.hidden=!(live&&W.total);"
+       "if(live&&W.total){var p=Math.min(100,100*el/W.total);barf.style.width=p+'%';"
+       "bar.setAttribute('aria-valuenow',Math.floor(p));barl.textContent=mmss(W.total-el)+' left'}"
+       "if(live)bc.textContent=W.until?'Broadcasting until '+W.until:'Broadcasting now';"
+       "else if(W.on)bc.textContent='Broadcast finished';"
+       "else bc.textContent=W.next?'Next broadcast at '+W.next:''}"
+       "function poll(){fetch('/window').then(function(r){return r.json()}).then(function(s){W=s;t0=Date.now();"
+       "if(s.time)document.getElementById('now').textContent=s.time;draw()}).catch(function(){})}"
+       "draw();setInterval(draw,1000);setInterval(poll,10000);";
   return s;
 }
 
@@ -275,20 +319,12 @@ std::string renderSettingsPage(const SettingsPageView &v) {
   if (v.localTime.empty()) {
     b += "<p>Waiting for the time from the internet&hellip;</p>";
   } else {
-    b += "<div class=\"big\">";
+    b += "<div class=\"big\" id=\"now\">";
     b += htmlEscape(v.localTime);
-    b += "</div>";
-    if (v.broadcasting && !v.broadcastUntil.empty()) {
-      b += "<p>Broadcasting until ";
-      b += htmlEscape(v.broadcastUntil);
-      b += "</p>";
-    } else if (v.broadcasting) {
-      b += "<p>Broadcasting now</p>";
-    } else if (!v.nextBroadcast.empty()) {
-      b += "<p>Next broadcast at ";
-      b += htmlEscape(v.nextBroadcast);
-      b += "</p>";
-    }
+    b += "</div><p id=\"bc\">";
+    b += htmlEscape(broadcastStatus(v));
+    b += "</p>";
+    b += progressBar(v);
     b += "<form method=\"post\" action=\"/broadcast\"><button type=\"submit\" class=\"secondary\">"
          "Broadcast for 10 minutes</button></form>"
          "<p class=\"help\">To sync your clock now, press this, then start reception on the clock.</p>";
@@ -326,11 +362,28 @@ std::string renderSettingsPage(const SettingsPageView &v) {
        "<button type=\"submit\" class=\"danger\">Forget WiFi</button></form></section>";
 
   std::string script = timezoneScript(false);
+  if (!v.localTime.empty()) script += progressScript(v);
   script += "var tzs=document.getElementById('tzs');"
             "function tzDirty(){tzs.hidden=false}"
             "tz.addEventListener('change',tzDirty);document.getElementById('tz_custom').addEventListener('input',tzDirty);";
   script += kScheduleScript;
   return page("JJY clock transmitter", b, script);
+}
+
+std::string renderWindowJson(const SettingsPageView &v) {
+  char numbers[96];
+  snprintf(numbers, sizeof(numbers), "\"on\":%s,\"elapsed\":%lu,\"total\":%lu,", v.broadcasting ? "true" : "false",
+           static_cast<unsigned long>(v.windowElapsedSec), static_cast<unsigned long>(v.windowTotalSec));
+  std::string out = "{\"time\":\"";
+  out += jsonEscape(v.localTime);
+  out += "\",";
+  out += numbers;
+  out += "\"until\":\"";
+  out += jsonEscape(v.broadcastUntil);
+  out += "\",\"next\":\"";
+  out += jsonEscape(v.nextBroadcast);
+  out += "\"}";
+  return out;
 }
 
 std::string renderUpdatingPage(const std::string &currentVersion) {

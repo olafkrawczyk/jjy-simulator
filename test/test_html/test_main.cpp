@@ -115,8 +115,35 @@ void test_settings_page_update_and_broadcasting() {
   TEST_ASSERT_TRUE(contains(page, "Install version 1.3.0"));
   TEST_ASSERT_TRUE(contains(page, "action=\"/update/install\""));
 
+  TEST_ASSERT_TRUE(contains(page, "<div id=\"bw\" hidden>"));
+
   v.broadcastUntil = "13:28";
-  TEST_ASSERT_TRUE(contains(renderSettingsPage(v), "Broadcasting until 13:28"));
+  v.windowElapsedSec = 150;
+  v.windowTotalSec = 600;
+  const std::string live = renderSettingsPage(v);
+  TEST_ASSERT_TRUE(contains(live, "Broadcasting until 13:28"));
+  TEST_ASSERT_TRUE(contains(live, "<div id=\"bw\"><div class=\"bar\""));
+  TEST_ASSERT_TRUE(contains(live, "aria-valuenow=\"25\"><div id=\"barf\" style=\"width:25%\">"));
+  TEST_ASSERT_TRUE(contains(live, "7:30 left"));
+  TEST_ASSERT_TRUE(contains(live, "fetch('/window')"));
+}
+
+void test_window_json() {
+  SettingsPageView v;
+  v.localTime = "01:18";
+  v.broadcasting = true;
+  v.broadcastUntil = "01:21";
+  v.nextBroadcast = "02:00";
+  v.windowElapsedSec = 120;
+  v.windowTotalSec = 300;
+  TEST_ASSERT_EQUAL_STRING(
+      "{\"time\":\"01:18\",\"on\":true,\"elapsed\":120,\"total\":300,\"until\":\"01:21\",\"next\":\"02:00\"}",
+      renderWindowJson(v).c_str());
+  v.broadcasting = false;
+  v.windowElapsedSec = 0;
+  v.windowTotalSec = 0;
+  v.broadcastUntil.clear();
+  TEST_ASSERT_TRUE(contains(renderWindowJson(v), "\"on\":false,\"elapsed\":0,\"total\":0,"));
 }
 
 void test_waiting_for_time() {
@@ -158,6 +185,7 @@ int main() {
   RUN_TEST(test_connecting_page_uses_hostname);
   RUN_TEST(test_settings_page);
   RUN_TEST(test_settings_page_update_and_broadcasting);
+  RUN_TEST(test_window_json);
   RUN_TEST(test_waiting_for_time);
   RUN_TEST(test_no_external_resources);
   RUN_TEST(test_updating_page_embeds_version_safely);

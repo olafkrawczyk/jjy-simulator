@@ -215,7 +215,16 @@ SettingsPageView settingsView(const DeviceSettings &s, const std::string &notice
     if (next != 0) v.nextBroadcast = formatLocalHHMM(next);
   }
   v.broadcasting = txWindowActive();
-  if (v.broadcasting && timeSyncClockValid()) v.broadcastUntil = formatLocalHHMM(txWindowEnd());
+  if (v.broadcasting && timeSyncClockValid()) {
+    const time_t now = time(nullptr);
+    const time_t start = txWindowStart();
+    const time_t end = txWindowEnd();
+    v.broadcastUntil = formatLocalHHMM(end);
+    if (end > start) {
+      v.windowTotalSec = static_cast<uint32_t>(end - start);
+      v.windowElapsedSec = now <= start ? 0 : (now >= end ? v.windowTotalSec : static_cast<uint32_t>(now - start));
+    }
+  }
   v.tzId = s.tzId;
   v.customTzRule = s.tzId == "custom" ? s.tzRule : "";
   v.schedule = s.schedule;
@@ -277,9 +286,10 @@ void handleBroadcastNow() {
     sendHtml(renderSettingsPage(settingsView(app.settings, "", "An update is being installed. Try again later.")));
     return;
   }
-  const time_t end = time(nullptr) + kBroadcastNowSec;
+  const time_t now = time(nullptr);
+  const time_t end = now + kBroadcastNowSec;
   if (!txWindowActive() || txWindowEnd() < end) {
-    txExtendWindow(end);
+    txExtendWindow(now, end);
     app.unscheduledBroadcast = true;
     Serial.printf("[WEB] Broadcast now until %s\n", formatLocalHHMM(end).c_str());
   }
@@ -319,6 +329,9 @@ void handleStatus() {
   json += "\"}";
   sendJson(json);
 }
+
+// Polled by the settings page for the progress bar; unlike /status it doesn't keep the transmitter awake.
+void handleWindow() { sendJson(renderWindowJson(settingsView(app.settings, "", ""))); }
 
 void handleUpdateCheck() {
   if (!originAllowed()) return;
@@ -373,6 +386,7 @@ void webUiBeginNormal() {
   server.on("/broadcast", HTTP_POST, handleBroadcastNow);
   server.on("/forget", HTTP_POST, handleForget);
   server.on("/status", HTTP_GET, handleStatus);
+  server.on("/window", HTTP_GET, handleWindow);
   server.on("/update/check", HTTP_POST, handleUpdateCheck);
   server.on("/update/install", HTTP_POST, handleUpdateInstall);
   server.onNotFound([]() { server.send(404, "text/plain", "Not found"); });

@@ -16,6 +16,7 @@ const uint32_t kStackBytes = 4096;
 
 portMUX_TYPE windowMux = portMUX_INITIALIZER_UNLOCKED;
 bool windowActive = false;
+time_t windowStart = 0;
 time_t windowEnd = 0;
 uint32_t windowGeneration = 0;
 volatile uint32_t acknowledgedGeneration = 0;
@@ -112,18 +113,20 @@ void txTask(void *) {
 
 void txBegin() { xTaskCreatePinnedToCore(txTask, "jjy_tx", kStackBytes, nullptr, kPriority, nullptr, kCore); }
 
-void txStartWindow(time_t end) {
+void txStartWindow(time_t start, time_t end) {
   portENTER_CRITICAL(&windowMux);
   windowActive = true;
+  windowStart = start;
   windowEnd = end;
   ++windowGeneration;
   portEXIT_CRITICAL(&windowMux);
 }
 
-void txExtendWindow(time_t end) {
+void txExtendWindow(time_t start, time_t end) {
   portENTER_CRITICAL(&windowMux);
   if (!windowActive) {
     windowActive = true;
+    windowStart = start;
     ++windowGeneration;
   }
   windowEnd = end;
@@ -163,4 +166,11 @@ time_t txWindowEnd() {
   const time_t end = windowEnd;
   portEXIT_CRITICAL(&windowMux);
   return end;
+}
+
+time_t txWindowStart() {
+  portENTER_CRITICAL(&windowMux);
+  const time_t start = windowStart;
+  portEXIT_CRITICAL(&windowMux);
+  return start;
 }

@@ -121,7 +121,7 @@ void runSchedule() {
   if (coldBootPending) {
     coldBootPending = false;
     app.unscheduledBroadcast = true;
-    txStartWindow(now + kColdBootBroadcastSec);
+    txStartWindow(now, now + kColdBootBroadcastSec);
     Serial.printf("[BOOT] Start-up broadcast until %s\n", formatLocal(now + kColdBootBroadcastSec).c_str());
     return;
   }
@@ -136,7 +136,7 @@ void runSchedule() {
   time_t start;
   time_t end;
   if (scheduleCurrentWindow(app.settings.schedule, now, start, end)) {
-    txStartWindow(end);
+    txStartWindow(start, end);
     stayAwakeLogged = false;
     Serial.printf("[SCHED] Broadcast %s -> %s\n", formatLocal(start).c_str(), formatLocal(end).c_str());
     return;

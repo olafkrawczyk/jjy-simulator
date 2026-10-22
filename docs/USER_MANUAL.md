@@ -226,7 +226,7 @@ After a replug the page stays available **for at least 10 minutes**. While the p
 
 | Section | What it does |
 | :--- | :--- |
-| **Clock and status** | The transmitter's current local time, and *Broadcasting until HH:MM* or *Next broadcast at HH:MM*. If the time is wrong here, your clock will be wrong too: check the time zone. |
+| **Clock and status** | The transmitter's current local time, and *Broadcasting until HH:MM* or *Next broadcast at HH:MM*. During a broadcast a progress bar shows how much of it is left. This works whether the broadcast was started by plugging in, by the button, or by a start time. If the time is wrong here, your clock will be wrong too: check the time zone. |
 | **Broadcast for 10 minutes** | Starts broadcasting right away so you can sync a clock now (see [section 4](#4-syncing-your-clock)). Saving settings doesn't cut this broadcast short. |
 | **Where are you?** | Your time zone. Each city shows its standard (winter) offset, for example *(GMT+1) Warsaw*. After you pick a new city, a reminder appears: the change only takes effect when you press **Save**. *Custom rule (advanced)* accepts a POSIX TZ rule for places not in the list. |
 | **When does your clock check the time?** | Start times (up to 8; use **Add a time** and **✕** to add and remove) and broadcast length in minutes. |
