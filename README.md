@@ -118,6 +118,8 @@ graph LR
 
 ## Setting it up (no computer needed)
 
+> The full [User Manual](docs/USER_MANUAL.md) covers setup, placement, the daily schedule, the WiFi reset procedure, updates and troubleshooting, with diagrams.
+
 1. Plug the transmitter into a USB charger.
 2. On your phone, join the WiFi network **JJY-Setup-XXXX**. A setup page opens by itself. If it doesn't, open any website and you'll be sent there.
 3. Pick your home WiFi and type its password.
@@ -144,6 +146,7 @@ On the settings page, press **Check for updates**, then **Install**. Don't unplu
 - **Antiphase drive:** 40 kHz carrier on two pins in opposite phase, with dead time and a 5 ms soft ramp.
 - **Phone setup:** open setup hotspot with a captive portal, so no app is needed.
 - **Schedule:** up to 8 daily broadcast times with a shared length; deep sleep in between.
+- **Broadcast now:** a settings-page button starts a 10-minute broadcast for syncing a clock on demand.
 - **Time zones:** city list that preselects the phone's zone, plus custom POSIX rules.
 - **Updates:** one-tap install from GitHub releases, with automatic rollback if a new version fails to start.
 
